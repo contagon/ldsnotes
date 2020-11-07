@@ -37,7 +37,7 @@ class Tag:
 
 
 class Notes:
-    def __init__(self, username=None, password=None, token=None, headless=True, rememberme=True):
+    def __init__(self, username=None, password=None, token=None, headless=True):
         self.session = requests.Session()
         
         if token is None:
@@ -48,7 +48,7 @@ class Notes:
             self.token = token
             self.session.cookies.set("Church-auth-jwt-prod", self.token)
             
-    def _login(self, headless, rememberme):
+    def _login(self, headless):
         #run headless
         options = Options()
         if headless:
@@ -65,12 +65,6 @@ class Notes:
             )
         login.clear()
         login.send_keys(self.username)
-
-        #remember me box (theoretically should make token last longer I think...)
-        if rememberme:
-            remember = browser.find_element_by_class_name("custom-checkbox")
-            remember.click()
-        login.send_keys(Keys.RETURN)
 
         #password page
         auth = WebDriverWait(browser, 10).until(
