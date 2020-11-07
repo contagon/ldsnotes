@@ -29,7 +29,7 @@ class Tag:
         self.count = count
     
     def __len__(self):
-        return self.count\
+        return self.count
 
     def __str__(self):
         return self.name
