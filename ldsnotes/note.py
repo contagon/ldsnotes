@@ -1,5 +1,6 @@
 import requests
 from time import sleep
+from content import Content
 
 #basic selenium imports
 from selenium import webdriver
@@ -10,18 +11,35 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
+from pprint import pprint
 TAGS        = "https://www.churchofjesuschrist.org/notes/api/v2/tags"
 ANNOTATIONS = "https://www.churchofjesuschrist.org/notes/api/v2/annotations"
 
-# class Annotation:
-#     def __init__(self, )
-#         self.title = 
-#         self.highlight = 
-#         self.context = 
-#         self.tags = 
-#         self.folder = 
-#         self.link = 
-#         self.note = 
+class Annotation(Content):
+    def __init__(self, json, content_json):
+        super().__init__(content_json)
+        hl = json['highlight']['content'][0]
+        self.color = hl['color']
+        start = int(hl['startOffset']) if int(hl['startOffset']) != -1 else None 
+        stop = int(hl['endOffset']) if int(hl['endOffset']) != -1 else None
+        self.highlight = " ".join( self.content.split(" ")[start:stop] )
+        self.tags = json['tags']
+        self.folders = json['folders']
+        
+        if "note" in json:
+            self.note = json['note']['content']
+        else:
+            self.note = ""
+
+    def __print__(self):
+        return self.highlight
+    __repr__ = __print__
+
+    @staticmethod
+    def fetch(json):
+        uris = [f"/{i['locale']}{i['highlight']['content'][0]['uri']}" for i in json]
+        content_jsons = Content.fetch(uris, json=True)
+        return [Annotation(a, c) for a,c in zip(json, content_jsons)]
 
 class Tag:
     def __init__(self, name, count):
@@ -43,7 +61,7 @@ class Notes:
         if token is None:
             self.username = username
             self.password = password
-            self._login(headless, rememberme)
+            self._login(headless)
         else:
             self.token = token
             self.session.cookies.set("Church-auth-jwt-prod", self.token)
@@ -65,6 +83,7 @@ class Notes:
             )
         login.clear()
         login.send_keys(self.username)
+        login.send_keys(Keys.RETURN)
 
         #password page
         auth = WebDriverWait(browser, 10).until(
@@ -100,4 +119,4 @@ class Notes:
             num = 1
 
         params = {"start": start, "numberToReturn": num}
-        return self.session.get(url=ANNOTATIONS, params=params).json()
+        return Annotation.fetch(self.session.get(url=ANNOTATIONS, params=params).json())
