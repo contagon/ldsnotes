@@ -1,6 +1,7 @@
 import requests
 from time import sleep
-from content import Content
+from content import Content, clean_html
+import re
 
 #basic selenium imports
 from selenium import webdriver
@@ -11,35 +12,88 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
-from pprint import pprint
 TAGS        = "https://www.churchofjesuschrist.org/notes/api/v2/tags"
 ANNOTATIONS = "https://www.churchofjesuschrist.org/notes/api/v2/annotations"
+FOLDERS     = "https://www.churchofjesuschrist.org/notes/api/v2/folders"
 
-class Annotation(Content):
-    def __init__(self, json, content_json):
-        super().__init__(content_json)
-        hl = json['highlight']['content'][0]
-        self.color = hl['color']
-        start = int(hl['startOffset']) if int(hl['startOffset']) != -1 else None 
-        stop = int(hl['endOffset']) if int(hl['endOffset']) != -1 else None
-        self.highlight = " ".join( self.content.split(" ")[start:stop] )
+class Annotation:
+    def __init__(self, json, content_jsons):
+        # get highlight color
+        self.color = json['highlight']['content'][0]['color']
+        self.style = json['highlight']['content'][0]['style']
+
+        #pull out content
+        sep_content = []
+        for j in content_jsons:
+            sep_content.append( clean_html(j['content'][0]['markup']) )
+        self.content = "\n".join(sep_content)
+
+        # pull out highlight
+        sep_hl = []
+        for i, (c, hl) in enumerate(zip(sep_content, json['highlight']['content'])):
+            start = int(hl['startOffset'])-1 if int(hl['startOffset']) != -1 else None 
+            stop = int(hl['endOffset']) if int(hl['endOffset']) != -1 else None
+            sep_hl.append( " ".join(re.split("[\s—]", c)[start:stop]) )
+        self.hl = "\n".join(sep_hl)
+
+        # pull out other info
         self.tags = json['tags']
-        self.folders = json['folders']
-        
-        if "note" in json:
+        self.folders_id = [i['id'] for i in json['folders']]
+
+        #pull out note if there is one
+        if "note" in json and 'content' in json['note']:
             self.note = json['note']['content']
         else:
             self.note = ""
 
+        # pull title of note
+        if "note" in json and 'title' in json['note']:
+            self.title = json['note']['title']
+        else:
+            self.title = ""
+
+        # pull out url to highlight
+        lang = json['locale']
+        end_p = json['highlight']['content'][-1]['uri'].split('.')[-1]
+        self.url = "https://www.churchofjesuschrist.org" + json['highlight']['content'][0]['uri'] + "-" + end_p + "?lang=" + lang
+
+        #name of article ie name of conference talk or Helaman 3
+        self.headline = content_jsons[0]['headline']
+
+        #full reference for scriptures like Helaman 3:29
+        self.reference = content_jsons[0]['referenceURIDisplayText']
+
+        #refers to book (ie GC 2020, or BOM)
+        self.publication = content_jsons[0]['publication']
+
+
     def __print__(self):
-        return self.highlight
+        return self.hl
     __repr__ = __print__
 
     @staticmethod
-    def fetch(json):
-        uris = [f"/{i['locale']}{i['highlight']['content'][0]['uri']}" for i in json]
+    def make(json):
+        # fetch all context stuff (do it all at once to be faster)
+        uris = [f"/{j['locale']}{i['uri']}" for j in json for i in j['highlight']['content']]
         content_jsons = Content.fetch(uris, json=True)
-        return [Annotation(a, c) for a,c in zip(json, content_jsons)]
+        #resort uris
+        uris = [j['uri'] for j in content_jsons]
+
+        #put it back together
+        sorted_content_jsons = []
+        #iterate through each note
+        for j in json:
+            temp = []
+            #iterate through each content in note
+            for i in j['highlight']['content']:
+                #get the content for that note
+                temp.append(content_jsons[ uris.index(f"/{j['locale']}{i['uri']}") ])
+            sorted_content_jsons.append(temp)
+
+        if len(json) == 1:
+            return Annotation(json[0], sorted_content_jsons[0])
+        else:
+            return [Annotation(a, c) for a,c in zip(json, sorted_content_jsons)]
 
 class Tag:
     def __init__(self, name, count):
@@ -53,9 +107,22 @@ class Tag:
         return self.name
     __repr__ = __str__
 
+class Folder:
+    def __init__(self, name, count, id):
+        self.name = name
+        self.count = count
+        self.id = id
+    
+    def __len__(self):
+        return self.count
+
+    def __str__(self):
+        return self.name
+    __repr__ = __str__
 
 class Notes:
-    def __init__(self, username=None, password=None, token=None, headless=True):
+    def __init__(self, username=None, password=None, token=None, headless=True, json=False):
+        self.json = json
         self.session = requests.Session()
         
         if token is None:
@@ -104,6 +171,10 @@ class Notes:
     def tags(self):
         return [Tag(t['name'], t['annotationCount']) for t in self.session.get(url=TAGS).json()]
 
+    @property
+    def folders(self):
+        return [Folder(f['name'], f['annotationCount'], f['id']) for f in self.session.get(url=FOLDERS).json()]
+
     def __getitem__(self, val):
         if isinstance(val, slice):
             if val.start is None:
@@ -119,4 +190,7 @@ class Notes:
             num = 1
 
         params = {"start": start, "numberToReturn": num}
-        return Annotation.fetch(self.session.get(url=ANNOTATIONS, params=params).json())
+        if self.json:
+            return self.session.get(url=ANNOTATIONS, params=params).json()
+        else:
+            return Annotation.make(self.session.get(url=ANNOTATIONS, params=params).json())
