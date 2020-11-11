@@ -2,6 +2,7 @@ import requests
 from time import sleep
 from content import Content, clean_html
 import re
+from datetime import datetime
 
 #basic selenium imports
 from selenium import webdriver
@@ -20,7 +21,8 @@ class Annotation:
     def __init__(self, json, content_jsons):
         # get highlight color
         self.color = json['highlight']['content'][0]['color']
-        self.style = json['highlight']['content'][0]['style']
+        # Some notes don't actually have style
+        # self.style = json['highlight']['content'][0]['style']
 
         #pull out content
         sep_content = []
@@ -31,9 +33,19 @@ class Annotation:
         # pull out highlight
         sep_hl = []
         for i, (c, hl) in enumerate(zip(sep_content, json['highlight']['content'])):
-            start = int(hl['startOffset'])-1 if int(hl['startOffset']) != -1 else None 
-            stop = int(hl['endOffset']) if int(hl['endOffset']) != -1 else None
-            sep_hl.append( " ".join(re.split("[\s—]", c)[start:stop]) )
+            # convert start/end word offset into string index
+            if int(hl['startOffset']) != -1:
+                start = int(hl['startOffset'])-1
+                # this ugly regex gets the nth match of of either — or a space
+                start = re.search(rf"(?:.*?[\s—]+){{{start-1}}}.*?([\s—]+)",c).end()
+            else:
+                start = None
+            if int(hl['endOffset']) != -1:
+                stop = int(hl['endOffset'])
+                stop = re.search(rf"(?:.*?[\s—]+){{{stop-1}}}.*?([\s—]+)", c).end()-1
+            else:
+                stop = None
+            sep_hl.append( c[start:stop] )
         self.hl = "\n".join(sep_hl)
 
         # pull out other info
@@ -52,6 +64,9 @@ class Annotation:
         else:
             self.title = ""
 
+        # pull out last updated date
+        self.last_update = datetime.fromisoformat(json["lastUpdated"])
+
         # pull out url to highlight
         lang = json['locale']
         end_p = json['highlight']['content'][-1]['uri'].split('.')[-1]
@@ -66,10 +81,12 @@ class Annotation:
         #refers to book (ie GC 2020, or BOM)
         self.publication = content_jsons[0]['publication']
 
-
     def __print__(self):
         return self.hl
     __repr__ = __print__
+
+    def markdown(self, syntax="=="):
+        return self.content.replace(self.hl, syntax+self.hl+syntax)
 
     @staticmethod
     def make(json):
