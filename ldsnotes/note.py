@@ -67,6 +67,9 @@ class Annotation:
         # pull out last updated date
         self.last_update = datetime.fromisoformat(json["lastUpdated"])
 
+        # pull out id
+        self.id = json['id']
+
         # pull out url to highlight
         lang = json['locale']
         end_p = json['highlight']['content'][-1]['uri'].split('.')[-1]
@@ -207,6 +210,23 @@ class Notes:
             num = 1
 
         params = {"start": start, "numberToReturn": num}
+        if self.json:
+            return self.session.get(url=ANNOTATIONS, params=params).json()
+        else:
+            return Annotation.make(self.session.get(url=ANNOTATIONS, params=params).json())
+
+    def search(self, keyword=None, tag=None, folder=None, start=1, num=50):
+        # setup request
+        params = {"start": start, "numberToReturn": num}
+        if tag is not None:
+            params['tags'] = tag
+        if folder is not None:
+            folderid = [f.id for f in self.folders if f.name == folder][0]
+            params['folderId'] = folderid
+        if keyword is not None:
+            params['searchPhrase'] = keyword
+
+        # send request
         if self.json:
             return self.session.get(url=ANNOTATIONS, params=params).json()
         else:
