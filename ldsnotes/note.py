@@ -2,6 +2,8 @@ import requests
 from time import sleep
 from annotations import make_annotation, Annotation
 
+#install chrome driver
+import chromedriver_autoinstaller
 #basic selenium imports
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
@@ -55,6 +57,9 @@ class Notes:
             self.session.cookies.set("Church-auth-jwt-prod", self.token)
             
     def _login(self, headless):
+        #install chromedriver
+        chromedriver_autoinstaller.install()
+
         #run headless
         options = Options()
         if headless:
@@ -114,7 +119,7 @@ class Notes:
         if self.json:
             return self.session.get(url=ANNOTATIONS, params=params).json()
         else:
-            return Annotation.make(self.session.get(url=ANNOTATIONS, params=params).json())
+            return make_annotation(self.session.get(url=ANNOTATIONS, params=params).json())
 
     def search(self, keyword=None, tag=None, folder=None, start=1, stop=51):
         # setup request
@@ -131,4 +136,4 @@ class Notes:
         if self.json:
             return self.session.get(url=ANNOTATIONS, params=params).json()
         else:
-            return Annotation.make(self.session.get(url=ANNOTATIONS, params=params).json())
+            return make_annotation(self.session.get(url=ANNOTATIONS, params=params).json())

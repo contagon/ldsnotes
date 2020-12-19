@@ -13,7 +13,9 @@ def clean_html(text):
     text = re.sub(no_footnotes, '', text)
     #remove html tags
     clean = re.compile('<.*?>')
-    return re.sub(clean, '', text)
+    text = re.sub(clean, '', text)
+    #remove peksy leftover
+    return text.replace(u'\xa0', u' ')
 
 class Content:
     def __init__(self, json):
@@ -34,7 +36,7 @@ class Content:
         self.publication = json['publication']
         lang = json['uri'].split('/')[1] 
 
-        self.url = "https://www.churchofjesuschrist.org/" + "/".join( json['uri'].split('/')[2:] ) + "?lang=" + lang
+        self.url = "https://www.churchofjesuschrist.org/study/" + "/".join( json['uri'].split('/')[2:] ) + "?lang=" + lang
 
     def __print__(self):
         return self.content
