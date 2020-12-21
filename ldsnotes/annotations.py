@@ -1,4 +1,4 @@
-from content import Content, clean_html
+from ldsnotes.content import Content, clean_html
 import re
 from datetime import datetime
 

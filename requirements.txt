@@ -1,3 +1,0 @@
-chromedriver_autoinstaller
-selenium
-requests

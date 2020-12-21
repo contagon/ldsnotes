@@ -1,6 +1,6 @@
 import requests
 from time import sleep
-from annotations import make_annotation, Annotation
+from ldsnotes.annotations import make_annotation, Annotation
 
 #install chrome driver
 import chromedriver_autoinstaller
