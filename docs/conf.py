@@ -37,6 +37,7 @@ extensions = [
     "sphinx.ext.napoleon",
     "IPython.sphinxext.ipython_console_highlighting"
 ]
+napoleon_use_ivar = True
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
