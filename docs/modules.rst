@@ -3,4 +3,4 @@ API Reference
 =============
 
 .. automodule:: ldsnotes
-    :members:
+    :members: Content, Bookmark, Journal, Highlight, Reference, Notes, Tag, Folder

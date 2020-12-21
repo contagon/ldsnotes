@@ -1,6 +1,7 @@
 *.vscode
 *.token
 docs/_build/**
+*.pyc
 
 # Distribution / packaging
 .Python
