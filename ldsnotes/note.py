@@ -115,15 +115,26 @@ class Notes:
             start = val+1
             num = 1
 
-        params = {"start": start, "numberToReturn": num}
+        params = {"start": start, "numberToReturn": num, "notesAsHtml": False}
         if self.json:
-            return self.session.get(url=ANNOTATIONS, params=params).json()
+            resp = self.session.get(url=ANNOTATIONS, params=params).json()
+            return resp[0] if len(resp) == 1 else resp
         else:
             return make_annotation(self.session.get(url=ANNOTATIONS, params=params).json())
 
-    def search(self, keyword=None, tag=None, folder=None, start=1, stop=51):
+    def search(self, keyword=None, tag=None, folder=None, annot_type=["bookmark", "highlight", "journal", "reference"], start=1, stop=51, as_html=False):
+        #clean out requested annotation type
+        if isinstance(annot_type, str):
+            annot_type = [annot_type]
+
+        types = ["highlight", "journal", "reference", "bookmark"]
+        bad = [t for t in annot_type if t not in types]
+        if len(bad) != 0:
+            raise ValueError("You tried to search for type that doesn't exist")
+
         # setup request
-        params = {"start": start, "numberToReturn": stop-start}
+        params = {"start": start, "numberToReturn": stop-start, "notesAsHtml": as_html}
+        params['type'] = ",".join(annot_type)
         if tag is not None:
             params['tags'] = tag
         if folder is not None:
@@ -134,6 +145,7 @@ class Notes:
 
         # send request
         if self.json:
-            return self.session.get(url=ANNOTATIONS, params=params).json()
+            resp = self.session.get(url=ANNOTATIONS, params=params).json()
+            return resp[0] if len(resp) == 1 else resp
         else:
             return make_annotation(self.session.get(url=ANNOTATIONS, params=params).json())

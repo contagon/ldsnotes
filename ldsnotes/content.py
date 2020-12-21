@@ -6,25 +6,37 @@ H = html.parser.HTMLParser()
 CONTENT = "https://www.churchofjesuschrist.org/content/api/v2"
 
 def clean_html(text):
+    """Takes in html code and cleans it. Note that footnotes are replaced with # for
+    word counting later.
+
+    Args:
+        text (string) : html to clean
+    
+    Returns:
+        text (string) : cleaned text"""
+
     #convert all html characters
     text = H.unescape(text)
+    #footnotes followed by punctuation make the punctuation be counted as a word... sigh.
+    punc_footnotes = re.compile(r'<sup class=\"marker\">\w</sup>(\w*)</a>([!?.,])')
+    text = re.sub(punc_footnotes, r'#\1#\2', text)
     #remove footnotes
-    no_footnotes = re.compile('<[^,<]*?\"marker\">[^,<]*?<.*?>')
-    text = re.sub(no_footnotes, '', text)
-    #remove html tags
+    no_footnotes = re.compile(r'<sup class=\"marker\">\w</sup>')
+    text = re.sub(no_footnotes, '#', text)
+    #remove rest of html tags
     clean = re.compile('<.*?>')
     text = re.sub(clean, '', text)
     #remove peksy leftover
     return text.replace(u'\xa0', u' ')
 
+
 class Content:
     def __init__(self, json):
         #actual text
-        print(json)
         self.sep_content = []
         for j in json['content']:
             self.sep_content.append( clean_html(j['markup']) )
-        self.content = "\n".join(self.sep_content)
+        self.content = "\n".join(self.sep_content).replace("#", "")
 
         #name of article ie name of conference talk or Helaman 3
         self.headline = json['headline']

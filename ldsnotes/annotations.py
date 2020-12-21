@@ -7,7 +7,7 @@ def make_annotation(json):
     uris = [f"/{j['locale']}{i['uri']}" for j in json  if 'highlight' in j for i in j['highlight']['content']]
     uris += [f"/{j['locale']}{i['uri']}" for j in json  if 'refs' in j for i in j['refs']]
     content_jsons = Content.fetch(uris, json=True) if len(uris) != 0 else []
-    #resort uris
+    #re-sort uris
     uris = [j['uri'] for j in content_jsons]
 
     #put it back together
@@ -83,6 +83,8 @@ class Journal(Annotation):
         else:
             self.title = ""
 
+split_reg = "[— ()#¶]"
+
 class Highlight(Journal):
     def __init__(self, json, content_jsons):
         super().__init__(json)
@@ -96,7 +98,7 @@ class Highlight(Journal):
         sep_content = []
         for j in content_jsons:
             sep_content.append( clean_html(j['content'][0]['markup']) )
-        self.content = "\n".join(sep_content)
+        self.content = "\n".join(sep_content).replace("#", "")
 
         # pull out highlight
         sep_hl = []
@@ -104,16 +106,16 @@ class Highlight(Journal):
             # convert start/end word offset into string index
             if int(hl['startOffset']) != -1:
                 start = int(hl['startOffset'])-1
-                hl_and_end = re.split("[— ()]", c, maxsplit=start)[-1]
+                hl_and_end = re.split(split_reg, c, maxsplit=start)[-1]
             else:
                 hl_and_end = c
             if int(hl['endOffset']) != -1:
                 stop = int(hl['endOffset'])
-                len_end = -len(re.split("[— ()]", c, maxsplit=stop)[-1])
+                len_end = -len(re.split(split_reg, c, maxsplit=stop)[-1])
             else:
                 len_end = None
             sep_hl.append( hl_and_end[:len_end] )
-        self.hl = "\n".join(sep_hl)
+        self.hl = "\n".join(sep_hl).replace("#", "")
 
         # pull out url to highlight
         lang = json['locale']
@@ -124,13 +126,13 @@ class Highlight(Journal):
         self.url += "?lang=" + lang
 
         #name of article ie name of conference talk or Helaman 3
-        self.headline = content_jsons[0]['headline']
+        self.headline = clean_html( content_jsons[0]['headline'] )
 
         #full reference for scriptures like Helaman 3:29
-        self.reference = content_jsons[0]['referenceURIDisplayText']
+        self.reference = clean_html( content_jsons[0]['referenceURIDisplayText'] )
 
         #refers to book (ie GC 2020, or BOM)
-        self.publication = content_jsons[0]['publication']
+        self.publication = clean_html( content_jsons[0]['publication'] )
 
     def __print__(self):
         return self.hl
@@ -146,24 +148,24 @@ class Reference(Highlight):
         # pull out reference content
         #pull out content
         sep_content = []
-        for j in content_jsons:
+        for j in ref_json:
             sep_content.append( clean_html(j['content'][0]['markup']) )
-        self.ref_content = "\n".join(sep_content)
+        self.ref_content = "\n".join(sep_content).replace("#", "")
 
         # pull out url to reference
         lang = json['locale']
-        self.url = "https://www.churchofjesuschrist.org/study" + json['refs'][0]['uri']
+        self.ref_url = "https://www.churchofjesuschrist.org/study" + json['refs'][0]['uri']
         if len(json['highlight']['content']) > 1:
             end_p = json['refs'][-1]['uri'].split('.')[-1]
-            self.url += "-" + end_p 
-        self.url += "?lang=" + lang
+            self.ref_url += "-" + end_p 
+        self.ref_url += "?lang=" + lang
 
         #name of article ie name of conference talk or Helaman 3
-        self.ref_headline = ref_json[0]['headline']
+        self.ref_headline = clean_html( ref_json[0]['headline'] )
 
         #full reference for scriptures like Helaman 3:29
-        self.ref_eference = ref_json[0]['referenceURIDisplayText']
+        self.ref_reference = clean_html( ref_json[0]['referenceURIDisplayText'] )
 
         #refers to book (ie GC 2020, or BOM)
-        self.ref_publication = ref_json[0]['publication']
+        self.ref_publication = clean_html( ref_json[0]['publication'] )
         
