@@ -66,6 +66,10 @@ class Bookmark(Annotation):
         # pull out url to highlight
         lang = json['locale']
         self.url = "https://www.churchofjesuschrist.org" + json['bookmark']['uri'] + "?lang=" + lang
+    
+    def __print__(self):
+        return "(Bookmark) " + self.reference
+    __repr__ = __print__
 
 class Journal(Annotation):
     def __init__(self, json):
@@ -82,6 +86,13 @@ class Journal(Annotation):
             self.title = json['note']['title']
         else:
             self.title = ""
+        
+    def __print__(self):
+        more = self.note
+        if self.title != "":
+            more = self.title
+        return "(Journal) " + self.title
+    __repr__ = __print__
 
 split_reg = "[— ()#¶]"
 
@@ -135,7 +146,7 @@ class Highlight(Journal):
         self.publication = clean_html( content_jsons[0]['publication'] )
 
     def __print__(self):
-        return self.hl
+        return "(Highlight) " + self.hl
     __repr__ = __print__
 
     def markdown(self, syntax="=="):
@@ -168,4 +179,7 @@ class Reference(Highlight):
 
         #refers to book (ie GC 2020, or BOM)
         self.ref_publication = clean_html( ref_json[0]['publication'] )
-        
+
+    def __print__(self):
+        return "(Reference) " + self.hl
+    __repr__ = __print__
