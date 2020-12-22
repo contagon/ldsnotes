@@ -114,7 +114,7 @@ class Highlight(Journal):
                 len_end = -len(re.split(split_reg, c, maxsplit=stop)[-1])
             else:
                 len_end = None
-            sep_hl.append( hl_and_end[:len_end] )
+            sep_hl.append( hl_and_end[:len_end].strip() )
         self.hl = "\n".join(sep_hl).replace("#", "")
 
         # pull out url to highlight
