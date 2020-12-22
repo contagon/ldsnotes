@@ -2,3 +2,4 @@ chromedriver_autoinstaller
 selenium
 requests
 ipython
+addict

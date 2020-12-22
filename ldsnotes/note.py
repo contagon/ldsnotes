@@ -1,6 +1,8 @@
 import requests
 from time import sleep
 from ldsnotes.annotations import make_annotation, Annotation
+from addict import Dict
+from datetime import datetime
 
 #install chrome driver
 import chromedriver_autoinstaller
@@ -18,34 +20,77 @@ ANNOTATIONS = "https://www.churchofjesuschrist.org/notes/api/v2/annotations"
 FOLDERS     = "https://www.churchofjesuschrist.org/notes/api/v2/folders"
 
 
-class Tag:
-    def __init__(self, name, count):
-        self.name = name
-        self.count = count
-    
-    def __len__(self):
-        return self.count
+class Tag(Dict):
+    """Object that holds all Tag info
+
+    Attributes
+    -----------
+    annotationCount : string
+        Number of annotations assigned to tag
+    name : string
+        Name of tag
+    id : string
+        Seems to always be the same as name...
+    lastUsed : datetime
+        Last time that tag was edited"""
+    def __init__(self, *args, **kwargs):
+        super().__init__(self, *args, **kwargs)
+        self.lastUsed = datetime.fromisoformat(self.lastUsed)
 
     def __str__(self):
-        return self.name
+        return "(Tag) " + self.name
     __repr__ = __str__
 
-class Folder:
-    def __init__(self, name, count, id):
-        self.name = name
-        self.count = count
-        self.id = id
-    
-    def __len__(self):
-        return self.count
+class Folder(Dict):
+    """Object that holds all Tag info
+
+    Attributes
+    -----------
+    annotationCount : string
+        Number of annotations in folder
+    name : string
+        Name of folder
+    id : string
+        Special id of folder
+    lastUsed : datetime
+        Last time that the folder was changed
+    order.id : list
+        List of note ids in order that they were put in."""
+    def __init__(self, *args, **kwargs):
+        super().__init__(self, *args, **kwargs)
 
     def __str__(self):
-        return self.name
+        return "(Folder) " + self.name
     __repr__ = __str__
 
 class Notes:
-    def __init__(self, username=None, password=None, token=None, headless=True, json=False):
-        self.json = json
+    """Wrapper to pull any annotations from lds.org.
+
+    The API is rather complex to use to login. We take the lazy route and login
+    with selenium (basically a fake browser). To avoid doing this everytime you can 
+    save the necessary token.
+
+    The object also supports indexing, so you can get the first note with n[0], or the first 
+    10 doing n[:10]
+
+    Parameters
+    -----------
+    username : string
+        Your username
+    password : string
+        Your password
+    token : string
+        Instead of inputting your username/password, you can save your token and just input it
+    headless : bool
+        Whether to run selenium headless or not
+        
+    Attributes
+    -----------
+    tags : list
+        List of Tag objects of all your tags
+    folders : list
+        List of Folder objects of all your folders"""
+    def __init__(self, username=None, password=None, token=None, headless=True):
         self.session = requests.Session()
         
         if token is None:
@@ -95,11 +140,11 @@ class Notes:
 
     @property
     def tags(self):
-        return [Tag(t['name'], t['annotationCount']) for t in self.session.get(url=TAGS).json()]
+        return [Tag(t) for t in self.session.get(url=TAGS).json()]
 
     @property
     def folders(self):
-        return [Folder(f['name'], f['annotationCount'], f['id']) for f in self.session.get(url=FOLDERS).json()]
+        return [Folder(f) for f in self.session.get(url=FOLDERS).json()]
 
     def __getitem__(self, val):
         if isinstance(val, slice):
@@ -116,13 +161,34 @@ class Notes:
             num = 1
 
         params = {"start": start, "numberToReturn": num, "notesAsHtml": False}
-        if self.json:
-            resp = self.session.get(url=ANNOTATIONS, params=params).json()
-            return resp[0] if len(resp) == 1 else resp
-        else:
-            return make_annotation(self.session.get(url=ANNOTATIONS, params=params).json())
+        return make_annotation( self.session.get(url=ANNOTATIONS, params=params).json() )
 
-    def search(self, keyword=None, tag=None, folder=None, annot_type=["bookmark", "highlight", "journal", "reference"], start=1, stop=51, as_html=False):
+    def search(self, keyword=None, tag=None, folder=None, annot_type=["bookmark", "highlight", "journal", "reference"], start=1, stop=51, as_html=False, json=False):
+        """Searches for annotations.
+
+        Parameters
+        -----------
+        keyword : string
+            Keyword to search for. Defaults to None.
+        tag : string
+            Name of tag you want to search for. Defaults to None.
+        folder : string
+            Name of folder you want to search for. Defaults to None.
+        annot_type : list/string
+            Type of annotation to pull. Can be a list/one of bookmark, highlight, journal, reference. Defaults to all of them.
+        start : int
+            How deep in to start search (must be > 1). Defaults to 1.
+        stop : int
+            Where to stop search. Defaults to 51.
+        as_html : bool
+            If true, returns notes with html tags. If false, returns as markdown (I think). Defaults to False.
+        json : bool
+            If true, returns raw data from lds.org. If true, returns our cleaned objects. 
+
+        Returns
+        --------
+        List of strings or Bookmark/Highlight/Journal/Reference objects
+        """
         #clean out requested annotation type
         if isinstance(annot_type, str):
             annot_type = [annot_type]
@@ -144,8 +210,7 @@ class Notes:
             params['searchPhrase'] = keyword
 
         # send request
-        if self.json:
-            resp = self.session.get(url=ANNOTATIONS, params=params).json()
-            return resp[0] if len(resp) == 1 else resp
+        if json:
+            return self.session.get(url=ANNOTATIONS, params=params).json()
         else:
             return make_annotation(self.session.get(url=ANNOTATIONS, params=params).json())
