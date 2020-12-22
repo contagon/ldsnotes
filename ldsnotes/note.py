@@ -71,7 +71,8 @@ class Notes:
     save the necessary token.
 
     The object also supports indexing, so you can get the first note with n[0], or the first 
-    10 doing n[:10]
+    10 doing n[:10]. When doing this it'll return the most recently edited objects. 
+    Whenever querying, it'll always return the most recently edited objects.
 
     Parameters
     -----------

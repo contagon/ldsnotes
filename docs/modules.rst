@@ -12,10 +12,13 @@ Notes
 ------------
 Annotations
 ------------
+.. autoclass:: ldsnotes.Annotation
 .. autoclass:: ldsnotes.Bookmark
 .. autoclass:: ldsnotes.Journal
 .. autoclass:: ldsnotes.Highlight
+    :members:
 .. autoclass:: ldsnotes.Reference
+    :inherited-members:
 
 ---------
 Content

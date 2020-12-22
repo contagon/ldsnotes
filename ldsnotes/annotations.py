@@ -39,6 +39,18 @@ def make_annotation(json):
         return annotations
 
 class Annotation:
+    """Base class for all annotations.
+
+    Attributes
+    -----------
+    tags : list
+        List of strings of tag names.
+    folders_id : list
+        List of strings of folder ids. 
+    last_update : datetime
+        Last time annotation was edited.
+    id : string
+        Id of annotation."""
     def __init__(self, json):
         # pull out other info
         self.tags = json['tags']
@@ -51,6 +63,27 @@ class Annotation:
         self.id = json['id']
 
 class Bookmark(Annotation):
+    """A bookmark annotation. Inherits from annotation.
+
+    Attributes
+    -----------
+    tags : list
+        List of strings of tag names.
+    folders_id : list
+        List of strings of folder ids. 
+    last_update : datetime
+        Last time annotation was edited.
+    id : string
+        Id of annotation.
+    headline : string
+        Name of article ie name of conference talk or Helaman 3.
+    reference : string
+        Full reference for scriptures like Helaman 3:29.
+    publication : string
+        Refers to book (ie GC 2020 or BoM).
+    url : string
+        Url to bookmark location.
+    """
     def __init__(self, json):
         super().__init__(json)
 
@@ -72,6 +105,22 @@ class Bookmark(Annotation):
     __repr__ = __print__
 
 class Journal(Annotation):
+    """A journal entry. Inherits from Annotation.
+
+    Attributes
+    -----------
+    tags : list
+        List of strings of tag names.
+    folders_id : list
+        List of strings of folder ids. 
+    last_update : datetime
+        Last time annotation was edited.
+    id : string
+        Id of annotation.
+    title : string
+        Title of journal entry.
+    note : string
+        Actual note taken."""
     def __init__(self, json):
         super().__init__(json)
 
@@ -97,6 +146,36 @@ class Journal(Annotation):
 split_reg = "[— ()#¶]"
 
 class Highlight(Journal):
+    """A scripture highlight. Inherits from Journal.
+
+    Attributes
+    -----------
+    tags : list
+        List of strings of tag names.
+    folders_id : list
+        List of strings of folder ids. 
+    last_update : datetime
+        Last time annotation was edited.
+    id : string
+        Id of annotation.
+    title : string
+        Title of journal entry.
+    note : string
+        Actual note taken.
+    color : string
+        Color of annotation.
+    content : string
+        Content of verse/paragraph(s) being highlighted.
+    hl : string
+        Portion of verse that's been highlighted.
+    url : string
+        Url to verse/paragraph(s)
+    headline : string
+        Name of article ie name of conference talk or Helaman 3.
+    reference : string
+        Full reference for scriptures like Helaman 3:29.
+    publication : string
+        Refers to book (ie GC 2020 or BoM)."""
     def __init__(self, json, content_jsons):
         super().__init__(json)
 
@@ -150,9 +229,57 @@ class Highlight(Journal):
     __repr__ = __print__
 
     def markdown(self, syntax="=="):
+        """Returns content with the highlight wrapped in markdown syntax.
+
+        Parameters
+        -----------
+        syntax : string
+            String to wrap highlight in. Defaults to ==
+
+        Returns
+        --------
+        Content with wrapped highlight."""
         return self.content.replace(self.hl, syntax+self.hl+syntax)
 
 class Reference(Highlight):
+    """A scripture link/reference. Inherits from Highlight.
+
+    Attributes
+    -----------
+    tags : list
+        List of strings of tag names.
+    folders_id : list
+        List of strings of folder ids. 
+    last_update : datetime
+        Last time annotation was edited.
+    id : string
+        Id of annotation.
+    title : string
+        Title of journal entry.
+    note : string
+        Actual note taken.
+    color : string
+        Color of annotation.
+    content : string
+        Content of verse/paragraph(s) being highlighted.
+    hl : string
+        Portion of verse that's been highlighted.
+    url : string
+        Url to verse/paragraph(s)
+    headline : string
+        Name of article ie name of conference talk or Helaman 3.
+    reference : string
+        Full reference for scriptures like Helaman 3:29.
+    publication : string
+        Refers to book (ie GC 2020 or BoM).
+    ref_content : string
+        Content of verse/paragraph(s) that are linked to
+    ref_headline : string
+        Headline of reference. See headline for examples.
+    ref_reference : string
+        Reference of reference. See reference for examples.
+    ref_publication : string
+        Publication of reference. See publication for examples."""
     def __init__(self, json, hl_json, ref_json):
         super().__init__(json, hl_json)
 
