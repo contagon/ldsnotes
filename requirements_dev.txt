@@ -15,5 +15,4 @@ pytest-runner==5.2
 chromedriver-autoinstaller==0.2.2
 selenium==3.141.0
 requests==2.25.1
-ipython==7.16.2
 addict==2.4.0
