@@ -1,4 +1,4 @@
-from content import Content, clean_html
+from ldsnotes.content import Content, clean_html
 import re
 from datetime import datetime
 
@@ -39,6 +39,18 @@ def make_annotation(json):
         return annotations
 
 class Annotation:
+    """Base class for all annotations.
+
+    Attributes
+    -----------
+    tags : list
+        List of strings of tag names.
+    folders_id : list
+        List of strings of folder ids. 
+    last_update : datetime
+        Last time annotation was edited.
+    id : string
+        Id of annotation."""
     def __init__(self, json):
         # pull out other info
         self.tags = json['tags']
@@ -51,6 +63,27 @@ class Annotation:
         self.id = json['id']
 
 class Bookmark(Annotation):
+    """A bookmark annotation. Inherits from annotation.
+
+    Attributes
+    -----------
+    tags : list
+        List of strings of tag names.
+    folders_id : list
+        List of strings of folder ids. 
+    last_update : datetime
+        Last time annotation was edited.
+    id : string
+        Id of annotation.
+    headline : string
+        Name of article ie name of conference talk or Helaman 3.
+    reference : string
+        Full reference for scriptures like Helaman 3:29.
+    publication : string
+        Refers to book (ie GC 2020 or BoM).
+    url : string
+        Url to bookmark location.
+    """
     def __init__(self, json):
         super().__init__(json)
 
@@ -66,8 +99,28 @@ class Bookmark(Annotation):
         # pull out url to highlight
         lang = json['locale']
         self.url = "https://www.churchofjesuschrist.org" + json['bookmark']['uri'] + "?lang=" + lang
+    
+    def __print__(self):
+        return "(Bookmark) " + self.reference
+    __repr__ = __print__
 
 class Journal(Annotation):
+    """A journal entry. Inherits from Annotation.
+
+    Attributes
+    -----------
+    tags : list
+        List of strings of tag names.
+    folders_id : list
+        List of strings of folder ids. 
+    last_update : datetime
+        Last time annotation was edited.
+    id : string
+        Id of annotation.
+    title : string
+        Title of journal entry.
+    note : string
+        Actual note taken."""
     def __init__(self, json):
         super().__init__(json)
 
@@ -82,10 +135,47 @@ class Journal(Annotation):
             self.title = json['note']['title']
         else:
             self.title = ""
+        
+    def __print__(self):
+        more = self.note
+        if self.title != "":
+            more = self.title
+        return "(Journal) " + self.title
+    __repr__ = __print__
 
 split_reg = "[— ()#¶]"
 
 class Highlight(Journal):
+    """A scripture highlight. Inherits from Journal.
+
+    Attributes
+    -----------
+    tags : list
+        List of strings of tag names.
+    folders_id : list
+        List of strings of folder ids. 
+    last_update : datetime
+        Last time annotation was edited.
+    id : string
+        Id of annotation.
+    title : string
+        Title of journal entry.
+    note : string
+        Actual note taken.
+    color : string
+        Color of annotation.
+    content : string
+        Content of verse/paragraph(s) being highlighted.
+    hl : string
+        Portion of verse that's been highlighted.
+    url : string
+        Url to verse/paragraph(s)
+    headline : string
+        Name of article ie name of conference talk or Helaman 3.
+    reference : string
+        Full reference for scriptures like Helaman 3:29.
+    publication : string
+        Refers to book (ie GC 2020 or BoM)."""
     def __init__(self, json, content_jsons):
         super().__init__(json)
 
@@ -114,7 +204,7 @@ class Highlight(Journal):
                 len_end = -len(re.split(split_reg, c, maxsplit=stop)[-1])
             else:
                 len_end = None
-            sep_hl.append( hl_and_end[:len_end] )
+            sep_hl.append( hl_and_end[:len_end].strip() )
         self.hl = "\n".join(sep_hl).replace("#", "")
 
         # pull out url to highlight
@@ -135,13 +225,61 @@ class Highlight(Journal):
         self.publication = clean_html( content_jsons[0]['publication'] )
 
     def __print__(self):
-        return self.hl
+        return "(Highlight) " + self.hl
     __repr__ = __print__
 
     def markdown(self, syntax="=="):
+        """Returns content with the highlight wrapped in markdown syntax.
+
+        Parameters
+        -----------
+        syntax : string
+            String to wrap highlight in. Defaults to ==
+
+        Returns
+        --------
+        Content with wrapped highlight."""
         return self.content.replace(self.hl, syntax+self.hl+syntax)
 
 class Reference(Highlight):
+    """A scripture link/reference. Inherits from Highlight.
+
+    Attributes
+    -----------
+    tags : list
+        List of strings of tag names.
+    folders_id : list
+        List of strings of folder ids. 
+    last_update : datetime
+        Last time annotation was edited.
+    id : string
+        Id of annotation.
+    title : string
+        Title of journal entry.
+    note : string
+        Actual note taken.
+    color : string
+        Color of annotation.
+    content : string
+        Content of verse/paragraph(s) being highlighted.
+    hl : string
+        Portion of verse that's been highlighted.
+    url : string
+        Url to verse/paragraph(s)
+    headline : string
+        Name of article ie name of conference talk or Helaman 3.
+    reference : string
+        Full reference for scriptures like Helaman 3:29.
+    publication : string
+        Refers to book (ie GC 2020 or BoM).
+    ref_content : string
+        Content of verse/paragraph(s) that are linked to
+    ref_headline : string
+        Headline of reference. See headline for examples.
+    ref_reference : string
+        Reference of reference. See reference for examples.
+    ref_publication : string
+        Publication of reference. See publication for examples."""
     def __init__(self, json, hl_json, ref_json):
         super().__init__(json, hl_json)
 
@@ -168,4 +306,7 @@ class Reference(Highlight):
 
         #refers to book (ie GC 2020, or BOM)
         self.ref_publication = clean_html( ref_json[0]['publication'] )
-        
+
+    def __print__(self):
+        return "(Reference) " + self.hl
+    __repr__ = __print__
