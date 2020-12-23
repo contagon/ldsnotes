@@ -1,4 +1,5 @@
 """Top-level package for LDS Notes."""
+# flake8: noqa
 
 __author__ = """Easton Potokar"""
 __email__ = 'contagon6@gmail.com'

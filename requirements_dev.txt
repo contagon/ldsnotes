@@ -15,5 +15,5 @@ pytest-runner==5.1
 chromedriver_autoinstaller
 selenium
 requests
-ipython
 addict
+ipython

@@ -1,23 +1,23 @@
 import requests
 from time import sleep
-from ldsnotes.annotations import make_annotation, Annotation
+from ldsnotes.annotations import make_annotation
 from addict import Dict
 from datetime import datetime
 
-#install chrome driver
+# install chrome driver
 import chromedriver_autoinstaller
-#basic selenium imports
+# basic selenium imports
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.chrome.options import Options
-#used for waiting for pages to load
+# used for waiting for pages to load
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
-TAGS        = "https://www.churchofjesuschrist.org/notes/api/v2/tags"
+TAGS = "https://www.churchofjesuschrist.org/notes/api/v2/tags"
 ANNOTATIONS = "https://www.churchofjesuschrist.org/notes/api/v2/annotations"
-FOLDERS     = "https://www.churchofjesuschrist.org/notes/api/v2/folders"
+FOLDERS = "https://www.churchofjesuschrist.org/notes/api/v2/folders"
 
 
 class Tag(Dict):
@@ -33,6 +33,7 @@ class Tag(Dict):
         Seems to always be the same as name...
     lastUsed : datetime
         Last time that tag was edited"""
+
     def __init__(self, *args, **kwargs):
         super().__init__(self, *args, **kwargs)
         self.lastUsed = datetime.fromisoformat(self.lastUsed)
@@ -40,6 +41,7 @@ class Tag(Dict):
     def __str__(self):
         return "(Tag) " + self.name
     __repr__ = __str__
+
 
 class Folder(Dict):
     """Object that holds all Tag info
@@ -56,6 +58,7 @@ class Folder(Dict):
         Last time that the folder was changed
     order.id : list
         List of note ids in order that they were put in."""
+
     def __init__(self, *args, **kwargs):
         super().__init__(self, *args, **kwargs)
 
@@ -63,16 +66,18 @@ class Folder(Dict):
         return "(Folder) " + self.name
     __repr__ = __str__
 
+
 class Notes:
     """Wrapper to pull any annotations from lds.org.
 
     The API is rather complex to use to login. We take the lazy route and login
-    with selenium (basically a fake browser). To avoid doing this everytime you can 
-    save the necessary token.
+    with selenium (basically a fake browser). To avoid doing this everytime
+    you can save the necessary token.
 
-    The object also supports indexing, so you can get the first note with n[0], or the first 
-    10 doing n[:10]. When doing this it'll return the most recently edited objects. 
-    Whenever querying, it'll always return the most recently edited objects.
+    The object also supports indexing, so you can get the first note with n[0],
+    or the first 10 doing n[:10]. When doing this it'll return the most
+    recently edited objects. Whenever querying, it'll always return
+    the most recently edited objects.
 
     Parameters
     -----------
@@ -81,19 +86,22 @@ class Notes:
     password : string
         Your password
     token : string
-        Instead of inputting your username/password, you can save your token and just input it
+        Instead of inputting your username/password, you can save your token
+        and just input it
     headless : bool
         Whether to run selenium headless or not
-        
+
     Attributes
     -----------
     tags : list
         List of Tag objects of all your tags
     folders : list
         List of Folder objects of all your folders"""
-    def __init__(self, username=None, password=None, token=None, headless=True):
+
+    def __init__(self, username=None, password=None,
+                 token=None, headless=True):
         self.session = requests.Session()
-        
+
         if token is None:
             self.username = username
             self.password = password
@@ -101,40 +109,42 @@ class Notes:
         else:
             self.token = token
             self.session.cookies.set("Church-auth-jwt-prod", self.token)
-            
+
     def _login(self, headless):
-        #install chromedriver
+        # install chromedriver
         chromedriver_autoinstaller.install()
 
-        #run headless
+        # run headless
         options = Options()
         if headless:
+            print("HERE")
             options.add_argument("--headless")
             options.add_argument("--window-size=1920x1080")
         browser = webdriver.Chrome(options=options)
 
-        #login using selenium
+        # login using selenium
         browser.get("https://churchofjesuschrist.org/notes")
 
-        #username page
+        # username page
         login = WebDriverWait(browser, 10).until(
-                EC.presence_of_element_located((By.NAME, "username"))
-            )
+            EC.presence_of_element_located((By.NAME, "username"))
+        )
         login.clear()
         login.send_keys(self.username)
         login.send_keys(Keys.RETURN)
 
-        #password page
+        # password page
         auth = WebDriverWait(browser, 10).until(
-                EC.presence_of_element_located((By.NAME, "password"))
-            )
+            EC.presence_of_element_located((By.NAME, "password"))
+        )
         auth.clear()
         auth.send_keys(self.password)
         auth.send_keys(Keys.RETURN)
         sleep(3)
 
-        #copy over cookies into our request session
-        self.token = [c['value'] for c in browser.get_cookies() if c['name'] == "Church-auth-jwt-prod"][0]
+        # copy over cookies into our request session
+        self.token = [c['value'] for c in browser.get_cookies(
+        ) if c['name'] == "Church-auth-jwt-prod"][0]
         self.session.cookies.set("Church-auth-jwt-prod", self.token)
 
         return self.token
@@ -154,17 +164,20 @@ class Notes:
             else:
                 start = val.start
             num = val.stop - start
-            #api indexes at 1
+            # api indexes at 1
             start += 1
 
         elif isinstance(val, int):
-            start = val+1
+            start = val + 1
             num = 1
 
         params = {"start": start, "numberToReturn": num, "notesAsHtml": False}
-        return make_annotation( self.session.get(url=ANNOTATIONS, params=params).json() )
+        return make_annotation(self.session.get(
+            url=ANNOTATIONS, params=params).json())
 
-    def search(self, keyword=None, tag=None, folder=None, annot_type=["bookmark", "highlight", "journal", "reference"], start=1, stop=51, as_html=False, json=False):
+    def search(self, keyword=None, tag=None, folder=None,
+               annot_type=["bookmark", "highlight", "journal", "reference"],
+               start=1, stop=51, as_html=False, json=False):
         """Searches for annotations.
 
         Parameters
@@ -176,21 +189,24 @@ class Notes:
         folder : string
             Name of folder you want to search for. Defaults to None.
         annot_type : list/string
-            Type of annotation to pull. Can be a list/one of bookmark, highlight, journal, reference. Defaults to all of them.
+            Type of annotation to pull. Can be a list/one of
+            bookmark, highlight, journal, reference. Defaults to all of them.
         start : int
             How deep in to start search (must be > 1). Defaults to 1.
         stop : int
             Where to stop search. Defaults to 51.
         as_html : bool
-            If True, returns notes with html tags. If False, returns as markdown (I think). Defaults to False.
+            If True, returns notes with html tags. If False,
+            returns as markdown (I think). Defaults to False.
         json : bool
-            If True, returns raw data from lds.org. If False, returns our cleaned objects. 
+            If True, returns raw data from lds.org. If False,
+            returns our cleaned objects.
 
         Returns
         --------
         List of strings or Bookmark/Highlight/Journal/Reference objects
         """
-        #clean out requested annotation type
+        # clean out requested annotation type
         if isinstance(annot_type, str):
             annot_type = [annot_type]
 
@@ -200,7 +216,10 @@ class Notes:
             raise ValueError("You tried to search for type that doesn't exist")
 
         # setup request
-        params = {"start": start, "numberToReturn": stop-start, "notesAsHtml": as_html}
+        params = {
+            "start": start,
+            "numberToReturn": stop - start,
+            "notesAsHtml": as_html}
         params['type'] = ",".join(annot_type)
         if tag is not None:
             params['tags'] = tag
@@ -214,4 +233,5 @@ class Notes:
         if json:
             return self.session.get(url=ANNOTATIONS, params=params).json()
         else:
-            return make_annotation(self.session.get(url=ANNOTATIONS, params=params).json())
+            return make_annotation(self.session.get(
+                url=ANNOTATIONS, params=params).json())

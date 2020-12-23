@@ -5,43 +5,47 @@ import re
 H = html.parser.HTMLParser()
 CONTENT = "https://www.churchofjesuschrist.org/content/api/v2"
 
+
 def clean_html(text):
-    """Takes in html code and cleans it. Note that footnotes are replaced with # for
-    word counting later.
+    """Takes in html code and cleans it. Note that footnotes
+    are replaced with # for word counting later.
 
     Parameters
     -----------
-        text : string 
+        text : string
             html to clean
-    
+
     Returns
     --------
         text : string
             cleaned text"""
 
-    #convert all html characters
+    # convert all html characters
     text = html.unescape(text)
-    #footnotes followed by punctuation make the punctuation be counted as a word... sigh.
-    punc_footnotes = re.compile(r'<sup class=\"marker\">\w</sup>(\w*)</a>([!?.,])')
+    # footnotes followed by punctuation make the punctuation be counted as a
+    # word... sigh.
+    punc_footnotes = re.compile(
+        r'<sup class=\"marker\">\w</sup>(\w*)</a>([!?.,])')
     text = re.sub(punc_footnotes, r'#\1#\2', text)
-    #remove footnotes (also counts as words)
+    # remove footnotes (also counts as words)
     no_footnotes = re.compile(r'<sup class=\"marker\">\w</sup>')
     text = re.sub(no_footnotes, '#', text)
-    #remove rest of html tags
+    # remove rest of html tags
     clean = re.compile('<.*?>')
     text = re.sub(clean, '', text)
-    #remove peksy leftover
+    # remove peksy leftover
     return text.replace(u'\xa0', u' ')
 
 
 class Content:
-    """Class that pulls/represents content from anywhere on churchofjesuschrist.org/study (theoretically)
+    """Class that pulls/represents content from anywhere
+        on churchofjesuschrist.org/study (theoretically)
 
 
     Parameters
     ----------
     json : dict
-        Dictionary made from json pull from lds.org's API. 
+        Dictionary made from json pull from lds.org's API.
 
     Attributes
     -----------
@@ -66,31 +70,33 @@ class Content:
     p_end : string
         Last verse/paragraph pulled.
     """
+
     def __init__(self, json):
-        #actual text
+        # actual text
         self.sep_content = []
         for j in json['content']:
-            self.sep_content.append( clean_html(j['markup']) )
+            self.sep_content.append(clean_html(j['markup']))
         self.content = "\n".join(self.sep_content).replace("#", "")
 
-        #name of article ie name of conference talk or Helaman 3
+        # name of article ie name of conference talk or Helaman 3
         self.headline = json['headline']
 
-        #full reference for scriptures like Helaman 3:29
+        # full reference for scriptures like Helaman 3:29
         self.reference = json['referenceURIDisplayText']
 
-        #refers to book (ie GC 2020, or BOM)
+        # refers to book (ie GC 2020, or BOM)
         self.publication = json['publication']
 
-        #uri it was pulled with
-        self.uri = uri
+        # uri it was pulled with
+        self.uri = json['uri']
 
-        #paragraph or verse #'s
-        self.p_start = int( json['content'][0]['id'][1:] )
-        self.p_end   = int( json['content'][-1]['id'][1:] )
+        # paragraph or verse #'s
+        self.p_start = int(json['content'][0]['id'][1:])
+        self.p_end = int(json['content'][-1]['id'][1:])
 
-        lang = json['uri'].split('/')[1] 
-        self.url = "https://www.churchofjesuschrist.org/study/" + "/".join( json['uri'].split('/')[2:] ) + "?lang=" + lang
+        lang = json['uri'].split('/')[1]
+        self.url = "https://www.churchofjesuschrist.org/study/" + \
+            "/".join(json['uri'].split('/')[2:]) + "?lang=" + lang
 
     def __print__(self):
         return self.content
@@ -98,7 +104,7 @@ class Content:
 
     @staticmethod
     def fetch(uris, json=False):
-        """Method to actually make content. This is where the magic happens. 
+        """Method to actually make content. This is where the magic happens.
             Requires a proper URI to fetch content.
 
         Parameters
@@ -144,17 +150,12 @@ class Content:
         'referenceURIDisplayText': 'Helaman 3:29',
         'type': 'chapter',
         'uri': '/eng/scriptures/bofm/hel/3.p29'}]
-        """
+        """  # noqa: E501
 
         resp = requests.post(url=CONTENT,
-                            data={"uris": uris}).json()
+                             data={"uris": uris}).json()
 
         if json:
             return [resp[u] for u in uris]
         else:
             return [Content(resp[u]) for u in uris]
-
-if __name__ == "__main__":
-    from pprint import pprint
-    c = Content.fetch(["/eng/scriptures/bofm/hel/3.p29", "/eng/general-conference/2020/10/34franco.p28"], json=True)
-    pprint(c)

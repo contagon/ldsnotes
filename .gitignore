@@ -2,6 +2,7 @@
 *.token
 docs/_build/**
 *.pyc
+.tox
 
 # Distribution / packaging
 .Python
