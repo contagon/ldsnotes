@@ -5,9 +5,6 @@
 import pytest
 
 
-from ldsnotes import Notes
-
-
 @pytest.fixture
 def response():
     """Sample pytest fixture.
