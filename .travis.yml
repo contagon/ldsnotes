@@ -4,7 +4,7 @@ python:
 - 3.7
 - 3.6
 - 3.5
-install: pip install -r docs/requirements.txt
+install: pip install -r requirements_dev.txt
 script: tox
 deploy:
   provider: pypi
