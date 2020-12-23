@@ -1,5 +1,5 @@
-chromedriver_autoinstaller
-selenium
-requests
-ipython
-addict
+chromedriver-autoinstaller==0.2.2
+selenium==3.141.0
+requests==2.25.1
+ipython==7.19.0
+addict==2.4.0
