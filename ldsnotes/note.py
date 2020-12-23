@@ -182,9 +182,9 @@ class Notes:
         stop : int
             Where to stop search. Defaults to 51.
         as_html : bool
-            If true, returns notes with html tags. If false, returns as markdown (I think). Defaults to False.
+            If True, returns notes with html tags. If False, returns as markdown (I think). Defaults to False.
         json : bool
-            If true, returns raw data from lds.org. If true, returns our cleaned objects. 
+            If True, returns raw data from lds.org. If False, returns our cleaned objects. 
 
         Returns
         --------

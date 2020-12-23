@@ -24,7 +24,7 @@ def clean_html(text):
     #footnotes followed by punctuation make the punctuation be counted as a word... sigh.
     punc_footnotes = re.compile(r'<sup class=\"marker\">\w</sup>(\w*)</a>([!?.,])')
     text = re.sub(punc_footnotes, r'#\1#\2', text)
-    #remove footnotes
+    #remove footnotes (also counts as words)
     no_footnotes = re.compile(r'<sup class=\"marker\">\w</sup>')
     text = re.sub(no_footnotes, '#', text)
     #remove rest of html tags
