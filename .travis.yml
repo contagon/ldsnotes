@@ -1,0 +1,18 @@
+language: python
+python:
+- 3.8
+- 3.7
+- 3.6
+- 3.5
+install: pip install -r requirements.txt
+script: tox
+deploy:
+  provider: pypi
+  distributions: sdist bdist_wheel
+  user: contagon
+  password:
+    secure: kMDz49azE77aZEcR0Rlz0HCvjtnr3i853XfpobCq6JZ5WE3gu1h2OSEV0w8Zxwxl3266WdGswtM0WBMqkkNQcThRvj4TaqpRn5qBjO0dhu4d7GFpXZhctVRBrywNNjLfljYG+HzPgPXHGULvsK41wM0UShItnjeOlHUHKxXeECI+039/C3SlQGm9DAcNQyd9u9tcw5z3J4XrDqmFyPgNTbJdcucTfaORExpOCUps0ZTzZNeRoQcPn8uaAMXuHFULEkmNZBnuwC3lplr+vpMgY533xwB77Mbfn2Ee4Cwv1yOAbBAd7F66qiKZR9kY5/qA6QmiWb+70BUzMqDkxAjSsvYmmeWi7TLLhBG6EGPqzxXRG7ZoevC77dbcPHYJppDp651kOJy4vKVy5Bg/huVkEwOOMKLtmsxOXX+gbJn17TU9ceBYFGkE0SC3hQWcdjRT7oIf0IUHHSfvzcahkZCVm7i6rnofUPLI4zakcmcUD3ZB3jm7atSnrgJB0jRVWt6MbP/fRuqF8YYPY9/DkByX9vnS7yazNR9O76Ej86+UCs4QFvohtQi59P9Q3HXOkhClFGVGJS09zKwudWm7EKUsXK+SmLnys7U4nZ+d4TGTkYogQriE01VsVCVsuW0+CVgg6kS5jErUx0xXfLqvsTzA11J2NI84MBpV7jJzQnOWsOo=
+  true:
+    tags: true
+    repo: contagon/ldsnotes
+    python: 3.8
