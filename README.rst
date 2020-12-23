@@ -20,18 +20,31 @@ LDS Notes
 
 
 
-Unofficial Python API to read your annotations from lds.org. 
+Unofficial Python API to interact with your annotations from churchofjesuschrist.org. 
 I reverse engineered a bit of the API to download content/user notes from churchofjesuschrist.org.
+Currently can only download notes, working on uploading next.
 
 
 * Free software: MIT license
 * Documentation: https://ldsnotes.readthedocs.io.
 
 
-Features
+Roadmap
 --------
 
-* TODO
+* Update Content/Annotation classes to inherit from addict.Dict. Should make upload easier later.
+* 2-way sync.
+* Make tests (and setup CI with github) using dummy account/notes. 
+
+Handling Highlights
+--------------------
+
+The way churchofjesuschrist.org handles where highlights are is a bit difficult to reverse engineer. They save where your highlight is
+by counting words - both from the start, and from the end. The difficult part is figuring out what they consider a "word". For example,
+a footnote/reference counts as a word, *and a comma after a word with a footnote also counts as one*. This makes things very case by case
+to get things right. If you have a problem with a highlight being a few words off, please open an issue with your where your highlight is at.
+
+TL;DR Highlights are hard, open issue if yours are off.
 
 Credits
 -------
