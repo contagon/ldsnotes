@@ -15,13 +15,16 @@ def make_annotation(json):
     for j in json:
         if j['type'] == "bookmark":
             annotations.append( Bookmark(j) )
+
         elif j['type'] == "journal":
             annotations.append( Journal(j) )
+
         elif j['type'] == 'highlight':
             content = []
             for i in j['highlight']['content']:
                 content.append(content_jsons[ uris.index(f"/{j['locale']}{i['uri']}") ])
             annotations.append( Highlight(j, content) ) 
+
         elif j['type'] == 'reference':
             content = []
             for i in j['highlight']['content']:
@@ -30,6 +33,7 @@ def make_annotation(json):
             for i in j['refs']:
                 ref_content.append(content_jsons[ uris.index(f"/{j['locale']}{i['uri']}") ])
             annotations.append( Reference(j, content, ref_content) ) 
+
         else:
             raise ValueError("Unknown Type of note")
 
@@ -192,6 +196,7 @@ class Highlight(Journal):
 
         # pull out highlight
         sep_hl = []
+        # iterate through each paragraph/verse included
         for i, (c, hl) in enumerate(zip(sep_content, json['highlight']['content'])):
             # convert start/end word offset into string index
             if int(hl['startOffset']) != -1:
@@ -199,17 +204,23 @@ class Highlight(Journal):
                 hl_and_end = re.split(split_reg, c, maxsplit=start)[-1]
             else:
                 hl_and_end = c
+
             if int(hl['endOffset']) != -1:
                 stop = int(hl['endOffset'])
                 len_end = -len(re.split(split_reg, c, maxsplit=stop)[-1])
             else:
                 len_end = None
+
+            # Put into note altogether
             sep_hl.append( hl_and_end[:len_end].strip() )
+
+        # join all together. Remove # used for word counting
         self.hl = "\n".join(sep_hl).replace("#", "")
 
         # pull out url to highlight
         lang = json['locale']
         self.url = "https://www.churchofjesuschrist.org/study" + json['highlight']['content'][0]['uri']
+        # if multiple verses, make url reflect that
         if len(json['highlight']['content']) > 1:
             end_p = json['highlight']['content'][-1]['uri'].split('.')[-1]
             self.url += "-" + end_p 
