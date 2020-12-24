@@ -3,6 +3,7 @@ from time import sleep
 from ldsnotes.annotations import make_annotation
 from addict import Dict
 from datetime import datetime
+from backports.datetime_fromisoformat import MonkeyPatch
 
 # install chrome driver
 import chromedriver_autoinstaller
@@ -15,6 +16,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
+MonkeyPatch.patch_fromisoformat()
 TAGS = "https://www.churchofjesuschrist.org/notes/api/v2/tags"
 ANNOTATIONS = "https://www.churchofjesuschrist.org/notes/api/v2/annotations"
 FOLDERS = "https://www.churchofjesuschrist.org/notes/api/v2/folders"
@@ -117,7 +119,6 @@ class Notes:
         # run headless
         options = Options()
         if headless:
-            print("HERE")
             options.add_argument("--headless")
             options.add_argument("--window-size=1920x1080")
         browser = webdriver.Chrome(options=options)
