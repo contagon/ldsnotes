@@ -53,7 +53,7 @@ def test_tag(notes):
 
 
 def test_folder(notes):
-    n = notes.search(folder="Journal", start=1, stop=3)
+    n = notes.search(folder="Journal", annot_type="highlight", start=1, stop=3)
     j_id = [i.id for i in notes.folders if i.name == "Journal"][0]
     for i in n:
         assert j_id in i.folders_id

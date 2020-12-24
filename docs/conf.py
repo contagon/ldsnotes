@@ -34,8 +34,7 @@ sys.path.insert(0, os.path.abspath('..'))
 extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.viewcode',
-    "sphinx.ext.napoleon",
-    "IPython.sphinxext.ipython_console_highlighting"
+    "sphinx.ext.napoleon"
 ]
 napoleon_use_ivar = True
 

@@ -10,7 +10,8 @@ with open('README.rst') as readme_file:
 with open('HISTORY.rst') as history_file:
     history = history_file.read()
 
-requirements = [ 'chromedriver_autoinstaller', 'selenium', 'requests', 'addict']
+with open('requirements.txt') as f:
+    install_requires = f.read().strip().split('\n')
 
 setup_requirements = ['pytest-runner', ]
 
@@ -31,7 +32,7 @@ setup(
         'Programming Language :: Python :: 3.8',
     ],
     description="Unofficial Python API to read your annotations from lds.org",
-    install_requires=requirements,
+    install_requires=install_requires,
     license="MIT license",
     long_description=readme + '\n\n' + history,
     long_description_content_type='text/x-rst',
