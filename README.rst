@@ -34,7 +34,11 @@ Roadmap
 
 * Update Content/Annotation classes to inherit from addict.Dict. Should make upload easier later.
 * 2-way sync.
-* Make tests (and setup CI with github) using dummy account/notes. 
+
+Done
+-----
+
+* Make tests (and setup CI with travis) using dummy account/notes. 
 
 Handling Highlights
 --------------------
