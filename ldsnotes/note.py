@@ -117,7 +117,6 @@ class Notes:
         # run headless
         options = Options()
         if headless:
-            print("HERE")
             options.add_argument("--headless")
             options.add_argument("--window-size=1920x1080")
         browser = webdriver.Chrome(options=options)
