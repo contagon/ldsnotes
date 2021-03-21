@@ -110,7 +110,7 @@ class Notes:
             self._login(headless)
         else:
             self.token = token
-            self.session.cookies.set("Church-auth-jwt-prod", self.token)
+            self.session.cookies.set("oauth_id_token", self.token)
 
     def _login(self, headless):
         # install chromedriver
@@ -145,8 +145,8 @@ class Notes:
 
         # copy over cookies into our request session
         self.token = [c['value'] for c in browser.get_cookies(
-        ) if c['name'] == "Church-auth-jwt-prod"][0]
-        self.session.cookies.set("Church-auth-jwt-prod", self.token)
+        ) if c['name'] == "oauth_id_token"][0]
+        self.session.cookies.set("oauth_id_token", self.token)
 
         return self.token
 
