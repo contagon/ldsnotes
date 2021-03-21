@@ -1,8 +1,6 @@
 from ldsnotes.content import Content, clean_html
 import re
 from datetime import datetime
-from backports.datetime_fromisoformat import MonkeyPatch
-MonkeyPatch.patch_fromisoformat()
 
 
 def make_annotation(json):

@@ -3,7 +3,6 @@ from time import sleep
 from ldsnotes.annotations import make_annotation
 from addict import Dict
 from datetime import datetime
-from backports.datetime_fromisoformat import MonkeyPatch
 
 # install chrome driver
 import chromedriver_autoinstaller
@@ -16,7 +15,6 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
-MonkeyPatch.patch_fromisoformat()
 TAGS = "https://www.churchofjesuschrist.org/notes/api/v2/tags"
 ANNOTATIONS = "https://www.churchofjesuschrist.org/notes/api/v2/annotations"
 FOLDERS = "https://www.churchofjesuschrist.org/notes/api/v2/folders"
@@ -110,7 +108,7 @@ class Notes:
             self._login(headless)
         else:
             self.token = token
-            self.session.cookies.set("Church-auth-jwt-prod", self.token)
+            self.session.cookies.set("oauth_id_token", self.token)
 
     def _login(self, headless):
         # install chromedriver
@@ -145,8 +143,8 @@ class Notes:
 
         # copy over cookies into our request session
         self.token = [c['value'] for c in browser.get_cookies(
-        ) if c['name'] == "Church-auth-jwt-prod"][0]
-        self.session.cookies.set("Church-auth-jwt-prod", self.token)
+        ) if c['name'] == "oauth_id_token"][0]
+        self.session.cookies.set("oauth_id_token", self.token)
 
         return self.token
 
