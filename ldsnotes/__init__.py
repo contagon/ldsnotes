@@ -3,7 +3,7 @@
 
 __author__ = """Easton Potokar"""
 __email__ = 'contagon6@gmail.com'
-__version__ = '0.1.4'
+__version__ = '0.1.5'
 
 from ldsnotes.content import Content
 from ldsnotes.annotations import Bookmark, Journal, Highlight, Reference, Annotation
