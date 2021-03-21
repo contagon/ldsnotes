@@ -17,4 +17,3 @@ selenium==3.141.0
 requests==2.25.1
 addict==2.4.0
 datetime==4.3
-backports-datetime-fromisoformat==1.0.0
