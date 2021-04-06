@@ -1,161 +1,372 @@
 import requests
-import html.parser
 import re
+import dpath.util
+from bs4 import BeautifulSoup
+import os
+from tqdm import tqdm
+CONTENT = "https://www.churchofjesuschrist.org/study/api/v3/language-pages/type/content?lang=eng"
 
-H = html.parser.HTMLParser()
-CONTENT = "https://www.churchofjesuschrist.org/content/api/v2"
+def clean_uri(uri):
+    if "study" in uri:
+        uri = uri[7:]
+    
+    if uri[0] != '/':
+        uri = '/' + uri
+
+    return uri
+
+def fetch(uri):
+    uri = clean_uri(uri)
+        
+    resp = requests.get(url=CONTENT, params={"uri": uri})
+    if resp.status_code == 200:
+        resp = resp.json()
+        types = {'chapter': Chapter,
+                'general-conference-talk': Talk,
+                'book': TableOfContent,
+                'general-conference': TableOfContent,
+                'topic': Chapter}
+
+        # have corresponding class clean things out
+        type = dpath.util.values(resp, "**/data-content-type")[0]
+        c = types.get(type)
+        if c is None:
+            print(f"Not configured for type {type}")
+        else:
+            c = c(resp)
+
+        return c
+
+class StandardWorks:
+    def __init__(self, pkl=None):
+        self.uris = ['scriptures/dc-testament/',
+                        'scriptures/bofm/',
+                        'scriptures/ot/',
+                        'scriptures/nt/',
+                        'scriptures/pgp/',]
+                        # 'scriptures/tg/']
+        # self.uris = ['scriptures/ot/']
+        self.works = []
+
+        if pkl is None:
+            for w in self.uris:
+                self.works.append(fetch(w))
+        else:
+            something_something = self.load_pkl(pkl)
+
+    def save_md(self, folder, seperate_verses=False):
+        finder = re.compile('\[.*?\](\([^#]*?\))')
+
+        if seperate_verses:
+            pass
+        else:
+            replacements = dict()
+            filenames = []
+            pages = []
+            for w in self.works:
+                replacements.update(w.get_name_replacements(seperate_verses))
+                filename, page = w.get_files(seperate_verses)
+                filenames.extend(filename)
+                pages.extend(page)
+
+            # replace references as needed
+            for f, p in zip(filenames, pages):
+                for m in finder.finditer(p):
+                    match = m[1][1:-1]
+
+                    # remove verse if it has it
+                    if '.' in match:
+                        match, verse = match.split('.')
+                    else:
+                        verse = None
+
+                    new = replacements.get(match)
+
+                    # add things in as needed
+                    if verse is not None:
+                        verse = f".{verse}?lang=eng#p{verse}" if new is None else f"#^{verse}"
+                    if new is None:
+                        new = "https://www.churchofjesuschrist.org/study" + match
+                        print("No match for ", match)
+                    if verse is not None:
+                        new += verse
+
+                    new = f"({new})".replace(" ", "%20")
+                    p = p.replace(m[1], new)
+
+                # save everything
+                file = os.path.join(folder, f)
+                print(file)
+                os.makedirs(os.path.dirname(file), exist_ok=True)
+                with open(file, 'w') as t:
+                    t.write(p)
+                    
+
+    def save_pkl(self, filename):
+        pass
+
+    def load_pkl(self, filename):
+        pass
+
+class TableOfContent:
+    def __init__(self, resp):
+        self.resp = resp
+
+        body = dpath.util.values(resp, "**/body")[0]
+        body = BeautifulSoup(body, 'html.parser')
+
+        elements = [b['href'] for b in body.find_all('a', href=True)]
+        # clean uris
+        elements = [clean_uri(e) for e in elements]
+
+        self._uri = clean_uri(resp['uri'])
+
+        self.chapters = self.get_all(elements)
+
+        # TODO Make dictionary mapping URIs to filenames for parsing later
+        # TODO When doing this, have it change to lds.org link if it doesn't exist
+
+    def get_name_replacements(self, seperate_verses=False):
+        if seperate_verses:
+            pass
+        else:
+            replacements = dict()
+            for c in self.chapters:
+                uri, filename, page = c.full_page
+                replacements[uri] = filename
+                
+            return replacements
+
+    def get_files(self, seperate_verses=False):
+        if seperate_verses:
+            pass
+        else:
+            filenames = []
+            pages     = []
+            folders   = []
+            for c in self.chapters:
+                uri, filename, page = c.full_page
+                filename = os.path.join(c.folder, filename)
+                
+                filenames.append(filename)
+                pages.append(page)
+                folders.append(c.folder)
+
+            return filenames, pages
 
 
-def clean_html(text):
-    """Takes in html code and cleans it. Note that footnotes
-    are replaced with # for word counting later.
-
-    Parameters
-    -----------
-        text : string
-            html to clean
-
-    Returns
-    --------
-        text : string
-            cleaned text"""
-
-    # convert all html characters
-    text = html.unescape(text)
-    # footnotes followed by punctuation make the punctuation be counted as a
-    # word... sigh.
-    punc_footnotes = re.compile(
-        r'<sup class=\"marker\">\w</sup>(\w*)</a>([!?.,])')
-    text = re.sub(punc_footnotes, r'#\1#\2', text)
-    # remove footnotes (also counts as words)
-    no_footnotes = re.compile(r'<sup class=\"marker\">\w</sup>')
-    text = re.sub(no_footnotes, '#', text)
-    # remove rest of html tags
-    clean = re.compile('<.*?>')
-    text = re.sub(clean, '', text)
-    # remove peksy leftover
-    return text.replace(u'\xa0', u' ')
-
-
-class Content:
-    """Class that pulls/represents content from anywhere
-        on churchofjesuschrist.org/study (theoretically)
-
-
-    Parameters
-    ----------
-    json : dict
-        Dictionary made from json pull from lds.org's API.
-
-    Attributes
-    -----------
-    content : string
-        Book, talk, or section of content.
-
-    headline : string
-        The content (see above) with verse number in case of scriptures.
-
-    publication : string
-        Overarching publication. Think BoM, DoC, General Conference 2020, etc.
-
-    url : string
-        URL of where the content is located (including the paragraph/verse).
-
-    uri : string
-        URI that it was pulled with.
-
-    p_start : string
-        First verse/paragraph pulled.
-
-    p_end : string
-        Last verse/paragraph pulled.
-    """
-
-    def __init__(self, json):
-        # actual text
-        self.sep_content = []
-        for j in json['content']:
-            self.sep_content.append(clean_html(j['markup']))
-        self.content = "\n".join(self.sep_content).replace("#", "")
-
-        # name of article ie name of conference talk or Helaman 3
-        self.headline = json['headline']
-
-        # full reference for scriptures like Helaman 3:29
-        self.reference = json['referenceURIDisplayText']
-
-        # refers to book (ie GC 2020, or BOM)
-        self.publication = json['publication']
-
-        # uri it was pulled with
-        self.uri = json['uri']
-
-        # paragraph or verse #'s
-        self.p_start = int(json['content'][0]['id'][1:])
-        self.p_end = int(json['content'][-1]['id'][1:])
-
-        lang = json['uri'].split('/')[1]
-        self.url = "https://www.churchofjesuschrist.org/study/" + \
-            "/".join(json['uri'].split('/')[2:]) + "?lang=" + lang
-
-    def __print__(self):
-        return self.content
-    __repr__ = __print__
+    def save_md(self, folder, seperate_verses=False):
+        if seperate_verses:
+            pass
+        else:
+            for c in self.chapters:
+                uri, filename, page = c.full_page
+                file = os.path.join(folder, os.path.join(c.folder, filename))
+                os.makedirs(os.path.dirname(file), exist_ok=True)
+                with open(file, 'w') as f:
+                    f.write(page)
 
     @staticmethod
-    def fetch(uris, json=False):
-        """Method to actually make content. This is where the magic happens.
-            Requires a proper URI to fetch content.
+    def get_all(elements):
+        results = []
 
-        Parameters
-        ----------
-        uris : list
-            List of URIs to pull from lds.org. See below for example.
-        json : bool
-            Whether to return as list of Content objects or the raw dictionaries. Most useful in debugging. Defaults to False.
+        # iterate through all elements in TOC
+        loop = tqdm(leave=False)
+        for e in elements:  
+            c = 1
+            while c is not None:
+                # get it
+                loop.update()
+                loop.set_description(e)
+                c = fetch(e)
 
-        Returns
-        --------
-        Either a list of Content objects, or a list of strings.
+                # if it was good, save it
+                if c is not None:
+                    results.append(c)
+                    
+                    # if it's a chapter, try to get the next one
+                    if e.split('/')[-1].isdigit():
+                        parts = e.split('/')
+                        num = int(parts[-1])+1
+                        new_link = "/".join(parts[:-1]) + "/" + str(num)
+                        if new_link not in elements:
+                            e = new_link
+                        else:
+                            c = None
+                    # otherwise, end while loop
+                    else:
+                        c = None
+        
+        return results
+
+class Content:
+    def __init__(self, resp):
+        self.resp = resp
+
+        body = dpath.util.values(resp, "**/body")[0]
+        body = BeautifulSoup(body, 'html.parser')
+        self._header = body.header
+
+        # get all the paragraphs/verses
+        verses = body.find_all(id=re.compile("p."))
+        self._verses = self.clean_verses(verses)
+
+        # get footnotes
+        footnotes = dpath.util.values(resp, "**/footnotes")
+        self._fn_id, self._footnotes = self.clean_footnotes(footnotes)
+
+        # get pdf link
+        try:
+            self._pdf = dpath.util.values(resp, "**/pdf/source")[0]
+        except:
+            self._pdf = None
+
+        # get uri
+        self._uri = clean_uri(resp['uri'])
+        self._toc = resp['tableOfContentsUri']
+
+        # get title of chapter/page
+        self.title = dpath.util.values(resp, "**/title")[0]
+
+        # get save location
+        self.folder = self._uri[::-1].split('/',1)[1][::-1][1:]
+        self.filename = self.title
+
+    @staticmethod
+    def clean_footnotes(footnotes):
+
+        fn_id = dpath.util.values(footnotes, '**/id')
+        textss = dpath.util.values(footnotes, '*/*/text')
+        textss = [BeautifulSoup(t, 'html.parser') for t in textss]
+
+        # note doing anything with type here.. be warned it may come up
+        # only seen ref['type'] = 'scripture-ref'
+
+        footnotes = []
+        # iterate over each footnote
+        for id, refs in zip(fn_id, textss):
+            # there can be multiple references in a footnote
+            for ref in refs.find_all('a'):
+
+                # get info from notes
+                chap_name = ref.get_text().split(':')[0]
+                link = re.split('[.?]', ref['href'])
+
+                # check if it's verses, or just a normal link
+                if len(link) == 3:
+                    chap_link, verses, _ = link
+                    chap_link = clean_uri(chap_link)
+
+                    # get list of all verses
+                    verses = verses.split(',')
+                    all_verses = []
+                    for v in verses:
+                        if "-" in v:
+                            start, end = v.split('-')
+                            if start.isdigit():
+                                all_verses += list(range(int(start), int(end)+1))
+                        
+                        if "-" not in v or not start.isdigit():
+                            all_verses.append( v )
+
+                    # put together all verses
+                    links = [f"[{v}]({chap_link}.{v})" for v in all_verses]
+                    link = f"[{chap_name}]({chap_link}):"
+                    link = link + ",".join(links)
+
+                else:
+                    link = f"[{chap_name}]({link[0]})"
+
+                # replace HTML link with a wikilink
+                ref.replace_with(link)
+
+            footnotes.append(refs)
+
+        return fn_id, footnotes        
+
+    @property
+    def verses(self):
+        return [v.get_text() + f" ^{i+1}" for i, v in enumerate(self._verses)]
+
+    @property
+    def verse_pages(self):
+        return list(zip(*[self._verse_to_page(i) for i in range(len(self._verses))]))
+
+    @property
+    def footnotes(self):
+        return [f"#### {id[4:]}: {fn.get_text()} ^{id}" for id, fn in zip(self._fn_id, self._footnotes)]
+
+    @property
+    def full_page(self):
+        # add in header (title, author, etc)
+        page = f"# {self._header.get_text().strip()}\n\n"
+
+        # page content
+        page += "\n\n".join(self.verses) + "\n\n"
+
+        # footnotes
+        page += "\n".join(self.footnotes)
+
+        return self._uri, self.filename+".md", page
+
+    @property
+    def link_page(self):
+        # add in header (title, author, etc)
+        page = f"# {self._header.get_text().strip()}\n\n"
+
+        # page content
+        for i in range(1, len(self._verses)+1):
+            page += f"![[{self._uri}.{i}#^1]]\n"
+
+        return self._uri, self.filename+".md", page
+
+    def _verse_to_page(self, val):
+        # get verse and footnotes in that verse
+        verse = self._verses[val-1].get_text()
+        fn_name = re.findall("\(#\^(note.*?)\)", verse)
+        fn_id = [self._fn_id.index(name) for name in fn_name]
+
+        # header
+        result = f"# {self.title}:{val}\n"
+
+        # navigation
+        if val != 1:
+            result += f"[<-- Previous]({self._uri}.{val-1}) "
+        if val != len(self._verses):
+            result += f"| [Next -->]({self._uri}.{val+1})"
+
+        # verse
+        result += "\n\n\n" + verse + " ^1\n\n"
+
+        # footnotes
+        for id in fn_id:
+            result += "\n" + self.footnotes[id]
+        return f"{self._uri}.{val}", f"{self.filename}.{val}.md", result
+
+class Chapter(Content):
+    @staticmethod
+    def clean_verses(verses):
+        for i, v in enumerate(verses):
+            # turn footnotes into wikilinks
+            fns = v.find_all(class_="study-note-ref")
+            for fn in fns:
+                letter = fn.contents[0].string
+                word = fn.contents[1]
+
+                fn.contents[0].replace_with("")
+                fn.contents[1].replace_with(f"[{word}](#^note{i+1}{letter})")
+
+        return verses
 
 
-        Examples
-        ---------
-        >>> Content.fetch(["/eng/scriptures/bofm/hel/3.p29"])
-        [29 Yea, we see that whosoever will may lay hold upon the word of God, which is quick and powerful, which shall divide asunder all the cunning and the snares and the wiles of the devil, and lead the man of Christ in a strait and narrow course across that everlasting gulf of misery which is prepared to engulf the wicked—]
-        >>> Content.fetch(["/eng/scriptures/bofm/hel/3.p29"], json=True)
-        [{'content': [{'displayId': '29',
-                    'id': 'p29',
-                    'markup': '<p class="verse" data-aid="128356897" id="p29"><span '
-                                'class="verse-number">29 </span>Yea, we see that '
-                                'whosoever will may lay hold upon the <a '
-                                'class="study-note-ref" href="#note29a"><sup '
-                                'class="marker">a</sup>word</a> of God, which is <a '
-                                'class="study-note-ref" href="#note29b"><sup '
-                                'class="marker">b</sup>quick</a> and powerful, which '
-                                'shall <a class="study-note-ref" href="#note29c"><sup '
-                                'class="marker">c</sup>divide</a> asunder all the '
-                                'cunning and the snares and the wiles of the devil, '
-                                'and lead the man of Christ in a strait and <a '
-                                'class="study-note-ref" href="#note29d"><sup '
-                                'class="marker">d</sup>narrow</a> course across that '
-                                'everlasting <a class="study-note-ref" '
-                                'href="#note29e"><sup class="marker">e</sup>gulf</a> '
-                                'of misery which is prepared to engulf the '
-                                'wicked&#x2014;</p>'}],
-        'headline': 'Helaman 3',
-        'image': {},
-        'publication': 'Book of Mormon',
-        'referenceURI': '/eng/scriptures/bofm/hel/3.p29?lang=eng#p29',
-        'referenceURIDisplayText': 'Helaman 3:29',
-        'type': 'chapter',
-        'uri': '/eng/scriptures/bofm/hel/3.p29'}]
-        """  # noqa: E501
+class Talk(Content):
+    @staticmethod
+    def clean_verses(verses):
+        for i, v in enumerate(verses):
+            # turn footnotes into wikilinks
+            fns = v.find_all(class_="note-ref")
+            for fn in fns:
+                letter = fn.contents[0].string
+                fn.contents[0].replace_with(f" [\[{letter}\]](#^note{letter})")
 
-        resp = requests.post(url=CONTENT,
-                             data={"uris": uris}).json()
-
-        if json:
-            return [resp[u] for u in uris]
-        else:
-            return [Content(resp[u]) for u in uris]
+        return verses
