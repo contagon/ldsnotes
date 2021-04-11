@@ -17,7 +17,12 @@ def clean_uri(uri):
 
 def fetch(uri):
     uri = clean_uri(uri)
-        
+
+    # currently these are broken on lds.org.. go around it for now. 
+    bad = ["/scriptures/tg/halt", "/scriptures/tg/tail"]
+    if uri in bad :
+        return None
+
     resp = requests.get(url=CONTENT, params={"uri": uri})
     if resp.status_code == 200:
         resp = resp.json()
@@ -25,7 +30,7 @@ def fetch(uri):
                 'general-conference-talk': Talk,
                 'book': TableOfContent,
                 'general-conference': TableOfContent,
-                'topic': Chapter}
+                'topic': Topic}
 
         # have corresponding class clean things out
         type = dpath.util.values(resp, "**/data-content-type")[0]
@@ -39,13 +44,15 @@ def fetch(uri):
 
 class StandardWorks:
     def __init__(self, pkl=None):
-        self.uris = ['scriptures/dc-testament/',
+        self.uris = ['scriptures/jst/',
+                        'sciptures/bd/',
+                        'scriptures/tg/',
+                        'scriptures/dc-testament/',
                         'scriptures/bofm/',
                         'scriptures/ot/',
                         'scriptures/nt/',
-                        'scriptures/pgp/',]
-                        # 'scriptures/tg/']
-        # self.uris = ['scriptures/ot/']
+                        'scriptures/pgp/']
+        # self.uris = ['scriptures/bofm/']
         self.works = []
 
         if pkl is None:
@@ -91,12 +98,11 @@ class StandardWorks:
                     if verse is not None:
                         new += verse
 
-                    new = f"({new})".replace(" ", "%20")
+                    new = f"({new})".replace(" ", "%20").replace("\xa0", "%20")
                     p = p.replace(m[1], new)
 
                 # save everything
                 file = os.path.join(folder, f)
-                print(file)
                 os.makedirs(os.path.dirname(file), exist_ok=True)
                 with open(file, 'w') as t:
                     t.write(p)
@@ -205,11 +211,12 @@ class Content:
 
         body = dpath.util.values(resp, "**/body")[0]
         body = BeautifulSoup(body, 'html.parser')
-        self._header = body.header
+        self.body = body
+        self._header = self.clean_header(body.header)
 
         # get all the paragraphs/verses
         verses = body.find_all(id=re.compile("p."))
-        self._verses = self.clean_verses(verses)
+        self._verses = self.clean_body(body)
 
         # get footnotes
         footnotes = dpath.util.values(resp, "**/footnotes")
@@ -233,11 +240,48 @@ class Content:
         self.filename = self.title
 
     @staticmethod
-    def clean_footnotes(footnotes):
+    def clean_header(header):
+        return header
 
+    @staticmethod
+    def clean_link(ref):
+        # get info from notes
+        chap_name = ref.get_text().split(':')[0]
+        link = re.split('[.?]', ref['href'])
+
+        # check if it's verses, or just a normal link
+        if len(link) == 3:
+            chap_link, verses, _ = link
+            chap_link = clean_uri(chap_link)
+
+            # get list of all verses
+            verses = verses.split(',')
+            all_verses = []
+            for v in verses:
+                if "-" in v:
+                    start, end = v.split('-')
+                    if start.isdigit():
+                        all_verses += list(range(int(start), int(end)+1))
+                
+                if "-" not in v or not start.isdigit():
+                    all_verses.append( v )
+
+            # put together all verses
+            links = [f"[{v}]({chap_link}.{v})" for v in all_verses]
+            link = f"[{chap_name}]({chap_link}):"
+            link = link + ",".join(links)
+
+        else:
+            link = f"[{chap_name}]({clean_uri(link[0])})"
+
+        return link
+
+
+    @staticmethod
+    def clean_footnotes(footnotes):
         fn_id = dpath.util.values(footnotes, '**/id')
         textss = dpath.util.values(footnotes, '*/*/text')
-        textss = [BeautifulSoup(t, 'html.parser') for t in textss]
+        textss = [BeautifulSoup(t, 'html.parser') for t  in textss]
 
         # note doing anything with type here.. be warned it may come up
         # only seen ref['type'] = 'scripture-ref'
@@ -247,36 +291,8 @@ class Content:
         for id, refs in zip(fn_id, textss):
             # there can be multiple references in a footnote
             for ref in refs.find_all('a'):
-
-                # get info from notes
-                chap_name = ref.get_text().split(':')[0]
-                link = re.split('[.?]', ref['href'])
-
-                # check if it's verses, or just a normal link
-                if len(link) == 3:
-                    chap_link, verses, _ = link
-                    chap_link = clean_uri(chap_link)
-
-                    # get list of all verses
-                    verses = verses.split(',')
-                    all_verses = []
-                    for v in verses:
-                        if "-" in v:
-                            start, end = v.split('-')
-                            if start.isdigit():
-                                all_verses += list(range(int(start), int(end)+1))
-                        
-                        if "-" not in v or not start.isdigit():
-                            all_verses.append( v )
-
-                    # put together all verses
-                    links = [f"[{v}]({chap_link}.{v})" for v in all_verses]
-                    link = f"[{chap_name}]({chap_link}):"
-                    link = link + ",".join(links)
-
-                else:
-                    link = f"[{chap_name}]({link[0]})"
-
+                link = Content.clean_link(ref)
+                
                 # replace HTML link with a wikilink
                 ref.replace_with(link)
 
@@ -345,7 +361,8 @@ class Content:
 
 class Chapter(Content):
     @staticmethod
-    def clean_verses(verses):
+    def clean_body(body):
+        verses = body.find_all(id=re.compile("p."))
         for i, v in enumerate(verses):
             # turn footnotes into wikilinks
             fns = v.find_all(class_="study-note-ref")
@@ -361,7 +378,8 @@ class Chapter(Content):
 
 class Talk(Content):
     @staticmethod
-    def clean_verses(verses):
+    def clean_body(body):
+        verses = body.find_all(id=re.compile("p."))
         for i, v in enumerate(verses):
             # turn footnotes into wikilinks
             fns = v.find_all(class_="note-ref")
@@ -370,3 +388,23 @@ class Talk(Content):
                 fn.contents[0].replace_with(f" [\[{letter}\]](#^note{letter})")
 
         return verses
+
+class Topic(Content):
+    @staticmethod
+    def clean_body(body):
+        # clean verses
+        verses = body.find_all('p')
+        for i, v in enumerate(verses):
+            for ref in v.find_all('a'):
+                link = Content.clean_link(ref)
+                ref.replace_with(link)
+
+            for italic in v.find_all(class_="key-word"):
+                word = italic.get_text()
+                italic.replace_with(f"*{word}*")
+
+        return verses
+
+    @staticmethod
+    def clean_header(header):
+        return header
