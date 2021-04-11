@@ -20,7 +20,7 @@ def fetch(uri):
 
     # currently these are broken on lds.org.. go around it for now. 
     bad = ["/scriptures/tg/halt", "/scriptures/tg/tail"]
-    if uri in bad :
+    if uri in bad:
         return None
 
     resp = requests.get(url=CONTENT, params={"uri": uri})
@@ -28,8 +28,8 @@ def fetch(uri):
         resp = resp.json()
         types = {'chapter': Chapter,
                 'general-conference-talk': Talk,
-                'book': TableOfContent,
-                'general-conference': TableOfContent,
+                'book': Book,
+                'general-conference': Book,
                 'topic': Topic}
 
         # have corresponding class clean things out
@@ -42,148 +42,135 @@ def fetch(uri):
 
         return c
 
+def replace_links(p, replacements):
+    finder = re.compile('\[.*?\](\([^#]*?\))')
+    for m in finder.finditer(p):
+        match = m[1][1:-1]
+
+        # remove verse if it has it
+        if '.' in match:
+            match, verse = match.split('.')
+        else:
+            verse = None
+
+        new = replacements.get(match)
+
+        # add things in as needed
+        if verse is not None:
+            verse = f".{verse}?lang=eng#p{verse}" if new is None else f"#^{verse}"
+        if new is None:
+            new = "https://www.churchofjesuschrist.org/study" + match
+            print("No match for ", match)
+        if verse is not None:
+            new += verse
+
+        new = f"({new})".replace(" ", "%20").replace("\xa0", "%20")
+        p = p.replace(m[1], new)
+    return p
+
 class StandardWorks:
-    def __init__(self, pkl=None):
-        self.uris = ['scriptures/jst/',
-                        'sciptures/bd/',
-                        'scriptures/tg/',
-                        'scriptures/dc-testament/',
+    def __init__(self, pkl=None, seperate_verses=False):
+        self.uris = ['scriptures/dc-testament/',
                         'scriptures/bofm/',
                         'scriptures/ot/',
                         'scriptures/nt/',
                         'scriptures/pgp/']
-        # self.uris = ['scriptures/bofm/']
+        # self.uris = ['scriptures/pgp/']
         self.works = []
 
-        if pkl is None:
-            for w in self.uris:
-                self.works.append(fetch(w))
-        else:
+        if pkl is not None:
             something_something = self.load_pkl(pkl)
 
-    def save_md(self, folder, seperate_verses=False):
-        finder = re.compile('\[.*?\](\([^#]*?\))')
+    def download_all(self):
+        for uri in self.uris:
+            c = fetch(uri)
+            c.download_all()
+            self.works.append(c)
 
-        if seperate_verses:
-            pass
-        else:
-            replacements = dict()
-            filenames = []
-            pages = []
-            for w in self.works:
-                replacements.update(w.get_name_replacements(seperate_verses))
-                filename, page = w.get_files(seperate_verses)
-                filenames.extend(filename)
-                pages.extend(page)
+    @property
+    def filenames(self):
+        result = []
+        for c in self.works:
+            result.extend(c.filenames)
+        return result
 
-            # replace references as needed
-            for f, p in zip(filenames, pages):
-                for m in finder.finditer(p):
-                    match = m[1][1:-1]
+    @property
+    def pages(self):
+        result = []
+        for c in self.works:
+            result.extend(c.pages)
+        return result
 
-                    # remove verse if it has it
-                    if '.' in match:
-                        match, verse = match.split('.')
-                    else:
-                        verse = None
+    @property
+    def replacements(self):
+        result = dict()
+        for c in self.works:
+            result.update(c.replacements)
+        return result
 
-                    new = replacements.get(match)
+    def save_md(self, folder):
+        # replace references as needed
+        for f, p in zip(self.filenames, self.pages):
+            # replace links with uri
+            p = replace_links(p, self.replacements)
 
-                    # add things in as needed
-                    if verse is not None:
-                        verse = f".{verse}?lang=eng#p{verse}" if new is None else f"#^{verse}"
-                    if new is None:
-                        new = "https://www.churchofjesuschrist.org/study" + match
-                        print("No match for ", match)
-                    if verse is not None:
-                        new += verse
-
-                    new = f"({new})".replace(" ", "%20").replace("\xa0", "%20")
-                    p = p.replace(m[1], new)
-
-                # save everything
-                file = os.path.join(folder, f)
-                os.makedirs(os.path.dirname(file), exist_ok=True)
-                with open(file, 'w') as t:
-                    t.write(p)
+            # save everything
+            file = os.path.join(folder, f)
+            os.makedirs(os.path.dirname(file), exist_ok=True)
+            with open(file+".md", 'w') as t:
+                t.write(p)
                     
-
     def save_pkl(self, filename):
         pass
 
     def load_pkl(self, filename):
         pass
 
-class TableOfContent:
-    def __init__(self, resp):
-        self.resp = resp
+class Book:
+    def __init__(self, resp, seperate_verses=False):
+        self._resp = resp
 
         body = dpath.util.values(resp, "**/body")[0]
         body = BeautifulSoup(body, 'html.parser')
 
-        elements = [b['href'] for b in body.find_all('a', href=True)]
+        self.elements = [b['href'] for b in body.find_all('a', href=True)]
         # clean uris
-        elements = [clean_uri(e) for e in elements]
+        self.elements = [clean_uri(e) for e in self.elements]
 
         self._uri = clean_uri(resp['uri'])
 
-        self.chapters = self.get_all(elements)
+    @property
+    def filenames(self):
+        result = []
+        for c in self.chapters:
+            result.extend(c.filenames)
+        return result
 
-        # TODO Make dictionary mapping URIs to filenames for parsing later
-        # TODO When doing this, have it change to lds.org link if it doesn't exist
+    @property
+    def pages(self):
+        result = []
+        for c in self.chapters:
+            result.extend(c.pages)
+        return result
 
-    def get_name_replacements(self, seperate_verses=False):
-        if seperate_verses:
-            pass
-        else:
-            replacements = dict()
-            for c in self.chapters:
-                uri, filename, page = c.full_page
-                replacements[uri] = filename
-                
-            return replacements
+    @property
+    def replacements(self):
+        result = dict()
+        for c in self.chapters:
+            result.update(c.replacements)
+        return result
 
-    def get_files(self, seperate_verses=False):
-        if seperate_verses:
-            pass
-        else:
-            filenames = []
-            pages     = []
-            folders   = []
-            for c in self.chapters:
-                uri, filename, page = c.full_page
-                filename = os.path.join(c.folder, filename)
-                
-                filenames.append(filename)
-                pages.append(page)
-                folders.append(c.folder)
-
-            return filenames, pages
-
-
-    def save_md(self, folder, seperate_verses=False):
-        if seperate_verses:
-            pass
-        else:
-            for c in self.chapters:
-                uri, filename, page = c.full_page
-                file = os.path.join(folder, os.path.join(c.folder, filename))
-                os.makedirs(os.path.dirname(file), exist_ok=True)
-                with open(file, 'w') as f:
-                    f.write(page)
-
-    @staticmethod
-    def get_all(elements):
+    def download_all(self):
         results = []
 
         # iterate through all elements in TOC
         loop = tqdm(leave=False)
-        for e in elements:  
+        for e in self.elements:  
             c = 1
             while c is not None:
-                # get it
                 loop.update()
                 loop.set_description(e)
+                # get it
                 c = fetch(e)
 
                 # if it was good, save it
@@ -195,7 +182,7 @@ class TableOfContent:
                         parts = e.split('/')
                         num = int(parts[-1])+1
                         new_link = "/".join(parts[:-1]) + "/" + str(num)
-                        if new_link not in elements:
+                        if new_link not in self.elements:
                             e = new_link
                         else:
                             c = None
@@ -203,16 +190,16 @@ class TableOfContent:
                     else:
                         c = None
         
-        return results
+        self.chapters = results
 
 class Content:
-    def __init__(self, resp):
-        self.resp = resp
+    def __init__(self, resp, seperate_verses=False):
+        self._resp = resp
 
         body = dpath.util.values(resp, "**/body")[0]
         body = BeautifulSoup(body, 'html.parser')
-        self.body = body
-        self._header = self.clean_header(body.header)
+        self._body = body
+        self._header = body.header
 
         # get all the paragraphs/verses
         verses = body.find_all(id=re.compile("p."))
@@ -233,15 +220,32 @@ class Content:
         self._toc = resp['tableOfContentsUri']
 
         # get title of chapter/page
-        self.title = dpath.util.values(resp, "**/title")[0]
+        self._title = dpath.util.values(resp, "**/title")[0]
+        self.titles = [self._title]
 
         # get save location
-        self.folder = self._uri[::-1].split('/',1)[1][::-1][1:]
-        self.filename = self.title
+        self._folder = self._uri[::-1].split('/',1)[1][::-1][1:]
 
-    @staticmethod
-    def clean_header(header):
-        return header
+    @property
+    def filenames(self):
+        return [os.path.join(self._folder, self._title)]
+
+    @property
+    def pages(self):
+        # add in header (title, author, etc)
+        page = f"# {self._header.get_text().strip()}\n\n"
+
+        # page content
+        page += "\n\n".join(self.verses) + "\n\n"
+
+        # footnotes
+        page += "\n".join(self.footnotes)
+
+        return [page]
+
+    @property
+    def replacements(self):
+        return {self._uri: self._title}
 
     @staticmethod
     def clean_link(ref):
@@ -276,7 +280,6 @@ class Content:
 
         return link
 
-
     @staticmethod
     def clean_footnotes(footnotes):
         fn_id = dpath.util.values(footnotes, '**/id')
@@ -305,25 +308,13 @@ class Content:
         return [v.get_text() + f" ^{i+1}" for i, v in enumerate(self._verses)]
 
     @property
-    def verse_pages(self):
-        return list(zip(*[self._verse_to_page(i) for i in range(len(self._verses))]))
-
-    @property
     def footnotes(self):
         return [f"#### {id[4:]}: {fn.get_text()} ^{id}" for id, fn in zip(self._fn_id, self._footnotes)]
 
+######## This are used to make a seperate page for each verse. TODO: Implement ########
     @property
-    def full_page(self):
-        # add in header (title, author, etc)
-        page = f"# {self._header.get_text().strip()}\n\n"
-
-        # page content
-        page += "\n\n".join(self.verses) + "\n\n"
-
-        # footnotes
-        page += "\n".join(self.footnotes)
-
-        return self._uri, self.filename+".md", page
+    def verse_pages(self):
+        return list(zip(*[self._verse_to_page(i) for i in range(len(self._verses))]))
 
     @property
     def link_page(self):
@@ -375,7 +366,6 @@ class Chapter(Content):
 
         return verses
 
-
 class Talk(Content):
     @staticmethod
     def clean_body(body):
@@ -404,7 +394,3 @@ class Topic(Content):
                 italic.replace_with(f"*{word}*")
 
         return verses
-
-    @staticmethod
-    def clean_header(header):
-        return header
