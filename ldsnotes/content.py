@@ -1,9 +1,10 @@
 import requests
 import re
 import dpath.util
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, NavigableString
 import os
 from tqdm import tqdm
+import pickle
 CONTENT = "https://www.churchofjesuschrist.org/study/api/v3/language-pages/type/content?lang=eng"
 
 def clean_uri(uri):
@@ -68,64 +69,6 @@ def replace_links(p, replacements):
         p = p.replace(m[1], new)
     return p
 
-class StandardWorks:
-    def __init__(self, pkl=None, seperate_verses=False):
-        self.uris = ['scriptures/dc-testament/',
-                        'scriptures/bofm/',
-                        'scriptures/ot/',
-                        'scriptures/nt/',
-                        'scriptures/pgp/']
-        # self.uris = ['scriptures/pgp/']
-        self.works = []
-
-        if pkl is not None:
-            something_something = self.load_pkl(pkl)
-
-    def download_all(self):
-        for uri in self.uris:
-            c = fetch(uri)
-            c.download_all()
-            self.works.append(c)
-
-    @property
-    def filenames(self):
-        result = []
-        for c in self.works:
-            result.extend(c.filenames)
-        return result
-
-    @property
-    def pages(self):
-        result = []
-        for c in self.works:
-            result.extend(c.pages)
-        return result
-
-    @property
-    def replacements(self):
-        result = dict()
-        for c in self.works:
-            result.update(c.replacements)
-        return result
-
-    def save_md(self, folder):
-        # replace references as needed
-        for f, p in zip(self.filenames, self.pages):
-            # replace links with uri
-            p = replace_links(p, self.replacements)
-
-            # save everything
-            file = os.path.join(folder, f)
-            os.makedirs(os.path.dirname(file), exist_ok=True)
-            with open(file+".md", 'w') as t:
-                t.write(p)
-                    
-    def save_pkl(self, filename):
-        pass
-
-    def load_pkl(self, filename):
-        pass
-
 class Book:
     def __init__(self, resp, seperate_verses=False):
         self._resp = resp
@@ -139,6 +82,8 @@ class Book:
 
         self._uri = clean_uri(resp['uri'])
 
+        self._replacements = dict()
+
     @property
     def filenames(self):
         result = []
@@ -155,13 +100,42 @@ class Book:
 
     @property
     def replacements(self):
-        result = dict()
-        for c in self.chapters:
-            result.update(c.replacements)
-        return result
+        if self._replacements != dict():
+            return self._replacements
+        else:
+            result = dict()
+            for c in self.chapters:
+                result.update(c.replacements)
+            return result
+
+    def add_replacements(self, r):
+        # load pickle if it's a reference to a pickle
+        if isinstance(r, str):
+            with open(r, 'rb') as handle:
+                r = pickle.load(handle)
+
+        # make object if we need to
+        if self._replacements is dict():
+            self._replacements = self.replacements
+
+        self._replacements.update(r)
+
+    def save_replacements(self, filename, combine=True):
+        to_save = self.replacements
+
+        # if it already exists, combine them it
+        if combine and os.path.isfile(filename):
+            with open(filename, 'rb') as handle:
+                temp = pickle.load(handle)
+                to_save.update(temp)
+
+        with open(filename, 'wb') as handle:
+            pickle.dump(to_save, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
     def download_all(self):
         results = []
+        try_more = 15 if 'jst' in self.elements[0] else 1
+        tried = 1
 
         # iterate through all elements in TOC
         loop = tqdm(leave=False)
@@ -176,6 +150,7 @@ class Book:
                 # if it was good, save it
                 if c is not None:
                     results.append(c)
+                    tried = 1
                     
                     # if it's a chapter, try to get the next one
                     if e.split('/')[-1].isdigit():
@@ -189,8 +164,59 @@ class Book:
                     # otherwise, end while loop
                     else:
                         c = None
+
+                # this little loop is to help with JST where chapters aren't sequential
+                elif tried < try_more:
+                    tried += 1
+                    c = 1
+
+                    # if it's a chapter, try to get the next one
+                    if e.split('/')[-1].isdigit():
+                        parts = e.split('/')
+                        num = int(parts[-1])+1
+                        new_link = "/".join(parts[:-1]) + "/" + str(num)
+                        if new_link not in self.elements:
+                            e = new_link
+                        else:
+                            c = None
+
+
         
         self.chapters = results
+
+    def save_md(self, folder):
+        # replace references as needed
+        for f, p in zip(self.filenames, self.pages):
+            # replace links with uri
+            p = replace_links(p, self.replacements)
+
+            # save everything
+            file = os.path.join(folder, f)
+            os.makedirs(os.path.dirname(file), exist_ok=True)
+            with open(file+".md", 'w') as t:
+                t.write(p)
+
+
+class StandardWorks(Book):
+    def __init__(self, seperate_verses=False):
+        self.uris = ['scriptures/dc-testament/',
+                        'scriptures/bofm/',
+                        'scriptures/ot/',
+                        'scriptures/nt/',
+                        'scriptures/pgp/',
+                        'scriptures/jst/',
+                        'scriptures/bd/',
+                        'scriptures/tg/']
+        self.uris = ['scriptures/jst/']
+        self.chapters = []
+        self._replacements = dict()
+
+    def download_all(self):
+        for uri in self.uris:
+            c = fetch(uri)
+            c.download_all()
+            self.chapters.append(c)
+                    
 
 class Content:
     def __init__(self, resp, seperate_verses=False):
@@ -199,11 +225,10 @@ class Content:
         body = dpath.util.values(resp, "**/body")[0]
         body = BeautifulSoup(body, 'html.parser')
         self._body = body
-        self._header = body.header
 
         # get all the paragraphs/verses
-        verses = body.find_all(id=re.compile("p."))
-        self._verses = self.clean_body(body)
+        self._body = self.clean_body(self._body)
+        self._body = self.clean_headers(self._body)
 
         # get footnotes
         footnotes = dpath.util.values(resp, "**/footnotes")
@@ -220,7 +245,7 @@ class Content:
         self._toc = resp['tableOfContentsUri']
 
         # get title of chapter/page
-        self._title = dpath.util.values(resp, "**/title")[0]
+        self._title = dpath.util.values(resp, "**/title")[0].replace("\xa0", " ")
         self.titles = [self._title]
 
         # get save location
@@ -232,14 +257,13 @@ class Content:
 
     @property
     def pages(self):
-        # add in header (title, author, etc)
-        page = f"# {self._header.get_text().strip()}\n\n"
-
-        # page content
-        page += "\n\n".join(self.verses) + "\n\n"
+        page = self._body.get_text()
+        page = page.strip()
+        page += "\n\n"
 
         # footnotes
-        page += "\n".join(self.footnotes)
+        page += "\n" + "\n".join(self.footnotes)
+        page = page.strip()
 
         return [page]
 
@@ -301,11 +325,22 @@ class Content:
 
             footnotes.append(refs)
 
-        return fn_id, footnotes        
+        return fn_id, footnotes   
 
-    @property
-    def verses(self):
-        return [v.get_text() + f" ^{i+1}" for i, v in enumerate(self._verses)]
+    @staticmethod
+    def clean_headers(body):
+        # clean out any links
+        for h in body.find_all('header'):
+            for ref in h.find_all('a'):
+                link = Content.clean_link(ref)
+                ref.replace_with(link)
+
+        # add markdown in
+        for i in range(1,6):
+            for h in body.find_all(f"h{i}"):
+                h.insert(0, "#"*i+" ")
+
+        return body
 
     @property
     def footnotes(self):
@@ -353,6 +388,15 @@ class Content:
 class Chapter(Content):
     @staticmethod
     def clean_body(body):
+        for cap in body.find_all('figcaption'):
+            cap.extract()
+        for cap in body.find_all('figure'):
+            cap.extract()
+        for cap in body.find_all('img'):
+            cap.extract()
+        for cap in body.find_all('video'):
+            cap.extract()
+
         verses = body.find_all(id=re.compile("p."))
         for i, v in enumerate(verses):
             # turn footnotes into wikilinks
@@ -364,7 +408,16 @@ class Chapter(Content):
                 fn.contents[0].replace_with("")
                 fn.contents[1].replace_with(f"[{word}](#^note{i+1}{letter})")
 
-        return verses
+            # append number to end
+            try:
+                num = v.find_all(class_="verse-number")[0].get_text().strip()
+                if num.isdigit():
+                    v.append(NavigableString(f" ^{num}\n"))
+            except:
+                v.append(NavigableString(f" ^{i}\n"))
+
+
+        return BeautifulSoup(str(body), 'html.parser')
 
 class Talk(Content):
     @staticmethod
@@ -377,11 +430,21 @@ class Talk(Content):
                 letter = fn.contents[0].string
                 fn.contents[0].replace_with(f" [\[{letter}\]](#^note{letter})")
 
-        return verses
+            num = v['id'][1:]
+            v.append(NavigableString(f" ^{num}\n"))
+
+        return body
 
 class Topic(Content):
     @staticmethod
     def clean_body(body):
+        for n in body.find_all('nav'):
+            n.unwrap()
+        for n in body.find_all('ul'):
+            n.unwrap()
+        for n in body.find_all('li'):
+            n.unwrap()
+
         # clean verses
         verses = body.find_all('p')
         for i, v in enumerate(verses):
@@ -393,4 +456,6 @@ class Topic(Content):
                 word = italic.get_text()
                 italic.replace_with(f"*{word}*")
 
-        return verses
+            v.append(NavigableString(f" ^{i}\n"))
+
+        return BeautifulSoup(str(body), 'html.parser')
