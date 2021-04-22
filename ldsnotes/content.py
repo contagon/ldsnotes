@@ -8,7 +8,7 @@ import pickle
 CONTENT = "https://www.churchofjesuschrist.org/study/api/v3/language-pages/type/content?lang=eng"
 
 def clean_uri(uri):
-    if "study" in uri:
+    if "study/" in uri:
         uri = uri[7:]
     
     if uri[0] != '/':
@@ -103,8 +103,10 @@ class Book:
                     'jst-matt/9',
                     'jst-matt/11',
                     'jst-matt/16',
+                    'jst-matt/21',
                     'jst-matt/23',
                     'jst-matt/26',
+                    'jst-mark/7',
                     'jst-mark/12',
                     'jst-mark/14',
                     'jst-mark/16',
@@ -123,12 +125,13 @@ class Book:
                     'jst-rom/13',
                     'jst-1-cor/15',
                     'jst-1-tim/6',
+                    'jst-heb/4',
                     'jst-heb/6',
                     'jst-heb/11',
                     'jst-rev/5',
                     'jst-rev/12',
                     'jst-rev/19']
-            temp = ['/sciptures/jst/'+t for t in temp]
+            temp = ['/scriptures/jst/'+t for t in temp]
             self.elements.extend(temp)
 
     @property
