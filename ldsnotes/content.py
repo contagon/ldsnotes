@@ -84,6 +84,53 @@ class Book:
 
         self._replacements = dict()
 
+        # jst is funky and has sequential gaps. We help it out
+        if self._uri == '/scriptures/jst':
+            temp = ['jst-gen/9',
+                    'jst-gen/14',
+                    'jst-gen/17',
+                    'jst-gen/19',
+                    'jst-gen/21',
+                    'jst-gen/48',
+                    'jst-gen/50',
+                    'jst-ex/18',
+                    'jst-ex/22',
+                    'jst-ex/32',
+                    'jst-ps/14',
+                    'jst-ps/24',
+                    'jst-ps/109',
+                    'jst-isa/42',
+                    'jst-matt/9',
+                    'jst-matt/11',
+                    'jst-matt/16',
+                    'jst-matt/23',
+                    'jst-matt/26',
+                    'jst-mark/12',
+                    'jst-mark/14',
+                    'jst-mark/16',
+                    'jst-luke/6',
+                    'jst-luke/9',
+                    'jst-luke/11',
+                    'jst-luke/14',
+                    'jst-luke/16',
+                    'jst-luke/21',
+                    'jst-luke/23',
+                    'jst-john/4',
+                    'jst-john/6',
+                    'jst-john/13',
+                    'jst-acts/22',
+                    'jst-rom/7',
+                    'jst-rom/13',
+                    'jst-1-cor/15',
+                    'jst-1-tim/6',
+                    'jst-heb/6',
+                    'jst-heb/11',
+                    'jst-rev/5',
+                    'jst-rev/12',
+                    'jst-rev/19']
+            temp = ['/sciptures/jst/'+t for t in temp]
+            self.elements.extend(temp)
+
     @property
     def filenames(self):
         result = []
@@ -134,8 +181,6 @@ class Book:
 
     def download_all(self):
         results = []
-        try_more = 15 if 'jst' in self.elements[0] else 1
-        tried = 1
 
         # iterate through all elements in TOC
         loop = tqdm(leave=False)
@@ -144,13 +189,12 @@ class Book:
             while c is not None:
                 loop.update()
                 loop.set_description(e)
-                # get it
+                # get it    
                 c = fetch(e)
 
                 # if it was good, save it
                 if c is not None:
                     results.append(c)
-                    tried = 1
                     
                     # if it's a chapter, try to get the next one
                     if e.split('/')[-1].isdigit():
@@ -165,23 +209,6 @@ class Book:
                     else:
                         c = None
 
-                # this little loop is to help with JST where chapters aren't sequential
-                elif tried < try_more:
-                    tried += 1
-                    c = 1
-
-                    # if it's a chapter, try to get the next one
-                    if e.split('/')[-1].isdigit():
-                        parts = e.split('/')
-                        num = int(parts[-1])+1
-                        new_link = "/".join(parts[:-1]) + "/" + str(num)
-                        if new_link not in self.elements:
-                            e = new_link
-                        else:
-                            c = None
-
-
-        
         self.chapters = results
 
     def save_md(self, folder):
@@ -207,7 +234,7 @@ class StandardWorks(Book):
                         'scriptures/jst/',
                         'scriptures/bd/',
                         'scriptures/tg/']
-        self.uris = ['scriptures/jst/']
+        # self.uris = ['scriptures/jst/']
         self.chapters = []
         self._replacements = dict()
 
